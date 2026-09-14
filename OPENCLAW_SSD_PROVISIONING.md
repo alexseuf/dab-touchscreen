@@ -9,25 +9,44 @@ OpenClaw soll die SSD nicht nur mit Dateien versehen, sondern vor dem Umstecken 
 3. Abhängigkeiten installieren.
 4. NetworkManager aktivieren und bekannte Haus-WLAN-Verbindung als Default lokal hinterlegen, sofern Zugangsdaten bereits bekannt sind.
 5. Erforderliche Zugangsdaten lokal und geschützt ablegen; niemals in Git.
-6. Mosquitto und benötigte Basisdienste installieren.
-7. `scripts/install_autonomous_firstboot.sh` ausführen.
-8. `/usr/local/bin/dab-openclaw-stage` mit einem real funktionierenden Aufruf der lokal installierten OpenClaw-Instanz ersetzen.
-9. `/usr/local/bin/dab-openclaw-report` mit dem bereits eingerichteten primären Kommunikationskanal verbinden.
-10. Beide Wrapper lokal testen. Placeholder oder Dummy-Implementierungen sind vor dem Umstecken NICHT zulässig.
-11. `dab-firstboot.service` aktivieren.
-12. SSH vollständig vorbereiten und das vorgesehene Administrationskonto prüfen:
+6. Deutsche Lokalisierung vollständig vorkonfigurieren, sodass beim ersten Boot keine Benutzereingabe erforderlich ist:
+    - Zeitzone: `Europe/Berlin`;
+    - Systemsprache/Locale: Deutsch (Deutschland), `de_DE.UTF-8`;
+    - Tastaturlayout: Deutsch (`de`);
+    - falls eine grafische Desktop-/Kiosk-Umgebung eigene Sprachparameter besitzt, ebenfalls Deutsch als Standard setzen;
+    - NTP/automatische Zeitsynchronisation aktivieren.
+7. Mosquitto und benötigte Basisdienste installieren.
+8. `scripts/install_autonomous_firstboot.sh` ausführen.
+9. `/usr/local/bin/dab-openclaw-stage` mit einem real funktionierenden Aufruf der lokal installierten OpenClaw-Instanz ersetzen.
+10. `/usr/local/bin/dab-openclaw-report` mit dem bereits eingerichteten primären Kommunikationskanal verbinden.
+11. Beide Wrapper lokal testen. Placeholder oder Dummy-Implementierungen sind vor dem Umstecken NICHT zulässig.
+12. `dab-firstboot.service` aktivieren.
+13. SSH vollständig vorbereiten und das vorgesehene Administrationskonto prüfen:
     - Benutzer existiert;
     - Benutzer ist **nicht gesperrt** (`passwd -S <user>` darf keinen Status `L` liefern);
     - Home-Verzeichnis und `~/.ssh` besitzen korrekte Eigentümer/Rechte;
     - der öffentliche OpenClaw-SSH-Key steht in `~/.ssh/authorized_keys`;
     - `sshd` ist aktiviert und startet beim Boot;
     - Passwort-Login darf deaktiviert bleiben, sobald Public-Key-Login funktionsfähig vorbereitet ist.
-13. Falls das Konto nach dem Image-/Provisioning-Schritt gesperrt ist, muss OpenClaw es **vor dem ersten Boot** entsperren. Dabei kein leeres Passwort erzeugen. Entweder ein bereits lokal geschütztes Passwort/Hash setzen oder einen vorhandenen gültigen Hash verwenden und danach Public-Key-Login sicherstellen.
-14. Display- und Touch-Ausrichtung als Systemparameter vorbereiten. Für dieses Projekt ist die Sollausrichtung **180°**. Display und Touch müssen gemeinsam gedreht werden, damit Anzeige und Touch-Koordinaten übereinstimmen.
-15. Testen, dass der First-Boot-Dienst nach einem simulierten Neustart automatisch startet.
-16. Testen, dass ein Fortschrittsbericht erfolgreich beim Benutzer ankommt.
-17. Testen, dass der persistente Phasenstatus nach Dienstneustart erhalten bleibt.
-18. Erst danach die SSD als bereit zum Einbau melden.
+14. Falls das Konto nach dem Image-/Provisioning-Schritt gesperrt ist, muss OpenClaw es **vor dem ersten Boot** entsperren. Dabei kein leeres Passwort erzeugen. Entweder ein bereits lokal geschütztes Passwort/Hash setzen oder einen vorhandenen gültigen Hash verwenden und danach Public-Key-Login sicherstellen.
+15. Display- und Touch-Ausrichtung als Systemparameter vorbereiten. Für dieses Projekt ist die Sollausrichtung **180°**. Display und Touch müssen gemeinsam gedreht werden, damit Anzeige und Touch-Koordinaten übereinstimmen.
+16. Testen, dass der First-Boot-Dienst nach einem simulierten Neustart automatisch startet.
+17. Testen, dass ein Fortschrittsbericht erfolgreich beim Benutzer ankommt.
+18. Testen, dass der persistente Phasenstatus nach Dienstneustart erhalten bleibt.
+19. Erst danach die SSD als bereit zum Einbau melden.
+
+## Verbindlicher Locale-/Zeit-Preflight
+
+Vor dem Aushängen der SSD muss OpenClaw prüfen, dass die Lokalisierung bereits vollständig gesetzt ist. Der Benutzer darf beim ersten Start nicht nach Sprache, Tastatur oder Zeitzone gefragt werden.
+
+```text
+PASS timezone_Europe_Berlin
+PASS locale_de_DE_UTF-8
+PASS keyboard_layout_de
+PASS ntp_enabled
+```
+
+Nach dem ersten Boot sind mindestens `timedatectl`, `localectl` und die effektive Locale zu prüfen. Abweichungen sollen OpenClaw automatisch korrigieren.
 
 ## Verbindlicher SSH-Preflight
 
@@ -63,7 +82,7 @@ Nach Einschalten darf kein manueller Startbefehl notwendig sein.
 
 Der Ablauf muss automatisch sein:
 
-`Boot -> Netzwerk -> SSH/Remotezugriff prüfen -> OpenClaw -> Projektstatus lesen -> nächste Phase umsetzen -> Phase testen -> Status speichern -> berichten -> nächste Phase`
+`Boot -> Netzwerk -> Locale/Zeit prüfen -> SSH/Remotezugriff prüfen -> OpenClaw -> Projektstatus lesen -> nächste Phase umsetzen -> Phase testen -> Status speichern -> berichten -> nächste Phase`
 
 Bei Neustart:
 
@@ -79,8 +98,9 @@ Sobald Netzwerk verfügbar ist, führt OpenClaw zuerst einen Remote-Preflight au
 2. Ping bzw. Erreichbarkeit prüfen.
 3. TCP/22 prüfen.
 4. Einen **echten SSH-Login mit dem vorgesehenen Schlüssel** testen.
-5. Erst wenn Schritt 4 erfolgreich ist, das System als remote wartbar markieren.
-6. Danach Display/Kiosk-Zustand prüfen (`systemctl`, `journalctl`, grafische Session, Anwendung/Kiosk-Prozess).
+5. Zeitzone, Uhrzeit/NTP, deutsche Locale und deutsches Tastaturlayout verifizieren und bei Bedarf automatisch korrigieren.
+6. Erst wenn der SSH-Login erfolgreich ist, das System als remote wartbar markieren.
+7. Danach Display/Kiosk-Zustand prüfen (`systemctl`, `journalctl`, grafische Session, Anwendung/Kiosk-Prozess).
 
 Nur `Ping OK` und `Port 22 offen` gelten ausdrücklich **nicht** als erfolgreicher SSH-Test.
 
@@ -123,6 +143,10 @@ Die Vorbereitung ist erst abgeschlossen, wenn alle folgenden Punkte mit PASS bes
 - [ ] Kommunikations-Hook real verdrahtet
 - [ ] Fortschritts-Testmeldung erfolgreich
 - [ ] Haus-WLAN vorbereitet, sofern Zugangsdaten verfügbar
+- [ ] Zeitzone `Europe/Berlin`
+- [ ] Systemsprache/Locale `de_DE.UTF-8`
+- [ ] deutsches Tastaturlayout
+- [ ] automatische Zeitsynchronisation/NTP aktiv
 - [ ] SSH-Benutzer vorhanden
 - [ ] SSH-Benutzer **nicht gesperrt**
 - [ ] OpenClaw Public Key in `authorized_keys`
