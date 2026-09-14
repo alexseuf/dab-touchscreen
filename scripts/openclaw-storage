@@ -1,0 +1,284 @@
+#!/bin/bash
+set -euo pipefail
+
+# Restricted privileged storage helper for an OpenClaw management host.
+# It intentionally grants no generic root shell. Every destructive command
+# rejects the physical disk(s) backing /, /boot and /boot/firmware.
+
+MOUNT_ROOT=/mnt/openclaw-storage
+OPENCLAW_USER="${OPENCLAW_STORAGE_USER:-openclaw}"
+
+fail() { echo "ERROR: $*" >&2; exit 1; }
+need() { command -v "$1" >/dev/null 2>&1 || fail "required command missing: $1"; }
+
+need lsblk
+need findmnt
+need readlink
+need mount
+need umount
+need wipefs
+need realpath
+
+canonical_dev() {
+  local d
+  d="$(readlink -f -- "${1:?device required}")"
+  [[ "$d" == /dev/* && -b "$d" ]] || fail "not a block device: $1"
+  printf '%s\n' "$d"
+}
+
+device_type() {
+  lsblk -dn -o TYPE -- "$1" | head -n1
+}
+
+physical_disks_for() {
+  # Print all physical disk ancestors of a block device. Works for normal
+  # partitions and most mapper/LVM stacks supported by lsblk.
+  lsblk -s -n -p -o PATH,TYPE -- "$1" 2>/dev/null | awk '$2=="disk" {print $1}' | sort -u
+}
+
+protected_disks() {
+  local mp src
+  for mp in / /boot /boot/firmware; do
+    src="$(findmnt -n -o SOURCE --target "$mp" 2>/dev/null || true)"
+    [[ -n "$src" && "$src" == /dev/* ]] || continue
+    src="$(readlink -f -- "$src")"
+    [[ -b "$src" ]] || continue
+    physical_disks_for "$src"
+  done | sort -u
+}
+
+assert_protection_available() {
+  [[ -n "$(protected_disks)" ]] || fail "cannot identify system/boot disk; destructive operation refused"
+}
+
+assert_not_protected() {
+  local dev target_disk protected
+  dev="$(canonical_dev "$1")"
+  assert_protection_available
+  while read -r target_disk; do
+    [[ -n "$target_disk" ]] || continue
+    while read -r protected; do
+      [[ -n "$protected" ]] || continue
+      [[ "$target_disk" != "$protected" ]] || fail "refusing operation on protected system disk: $protected"
+    done < <(protected_disks)
+  done < <(physical_disks_for "$dev")
+}
+
+assert_disk() {
+  local dev
+  dev="$(canonical_dev "$1")"
+  [[ "$(device_type "$dev")" == "disk" ]] || fail "whole disk required: $dev"
+  printf '%s\n' "$dev"
+}
+
+assert_unmounted_tree() {
+  local dev mounted
+  dev="$(canonical_dev "$1")"
+  mounted="$(lsblk -n -p -o MOUNTPOINTS -- "$dev" | sed '/^[[:space:]]*$/d' || true)"
+  [[ -z "$mounted" ]] || fail "device or a child is mounted; unmount first: $dev"
+}
+
+managed_mountpoint_for() {
+  local dev mp
+  dev="$(canonical_dev "$1")"
+  mp="$(findmnt -n -o TARGET --source "$dev" 2>/dev/null || true)"
+  [[ -n "$mp" ]] || fail "device is not mounted: $dev"
+  mp="$(realpath -m -- "$mp")"
+  [[ "$mp" == "$MOUNT_ROOT"/* ]] || fail "device is not mounted by openclaw-storage: $dev -> $mp"
+  printf '%s\n' "$mp"
+}
+
+safe_relative() {
+  local rel="${1:?relative path required}"
+  [[ "$rel" != /* ]] || fail "path must be relative"
+  [[ "$rel" != "" && "$rel" != "." ]] || fail "path may not address mount root"
+  case "/$rel/" in *"/../"*|*"/./"*) fail "path traversal is not allowed";; esac
+  printf '%s\n' "$rel"
+}
+
+safe_target_path() {
+  local mp rel parent base parent_real
+  mp="$1"
+  rel="$(safe_relative "$2")"
+  parent="$(dirname -- "$mp/$rel")"
+  base="$(basename -- "$mp/$rel")"
+  parent_real="$(realpath -m -- "$parent")"
+  [[ "$parent_real" == "$mp" || "$parent_real" == "$mp"/* ]] || fail "target escapes managed mount"
+  printf '%s/%s\n' "$parent_real" "$base"
+}
+
+cmd_check() {
+  local p
+  echo "PASS openclaw_storage_root_helper"
+  p="$(protected_disks)"
+  [[ -n "$p" ]] || fail "system disk detection failed"
+  while read -r d; do [[ -n "$d" ]] && echo "PASS protected_system_disk=$d"; done <<<"$p"
+  install -d -o root -g root -m 0755 "$MOUNT_ROOT"
+  echo "PASS openclaw_storage_mount_root=$MOUNT_ROOT"
+}
+
+cmd_list() {
+  lsblk -e 7 -o NAME,PATH,TYPE,SIZE,FSTYPE,LABEL,MOUNTPOINTS,MODEL,SERIAL,TRAN,RM,RO
+}
+
+cmd_info() {
+  local dev
+  dev="$(canonical_dev "$1")"
+  echo "device=$dev"
+  echo "protected=no"
+  if ! (assert_not_protected "$dev") >/dev/null 2>&1; then echo "protected=yes"; fi
+  lsblk -o NAME,PATH,TYPE,SIZE,FSTYPE,LABEL,UUID,PARTUUID,MOUNTPOINTS,MODEL,SERIAL,TRAN,RM,RO -- "$dev"
+}
+
+cmd_mount() {
+  local dev mp base
+  dev="$(canonical_dev "$1")"
+  assert_not_protected "$dev"
+  if findmnt -n --source "$dev" >/dev/null 2>&1; then
+    findmnt --source "$dev"
+    exit 0
+  fi
+  base="$(basename -- "$dev")"
+  mp="$MOUNT_ROOT/$base"
+  install -d -o root -g root -m 0755 "$mp"
+  mount -- "$dev" "$mp"
+  echo "$mp"
+}
+
+cmd_unmount() {
+  local dev mp
+  dev="$(canonical_dev "$1")"
+  assert_not_protected "$dev"
+  mp="$(managed_mountpoint_for "$dev")"
+  umount -- "$mp"
+  rmdir --ignore-fail-on-non-empty "$mp" || true
+}
+
+cmd_wipe() {
+  local dev
+  dev="$(assert_disk "$1")"
+  assert_not_protected "$dev"
+  assert_unmounted_tree "$dev"
+  wipefs -a -- "$dev"
+  if command -v sgdisk >/dev/null 2>&1; then sgdisk --zap-all "$dev" >/dev/null; fi
+  sync
+}
+
+cmd_partition_gpt() {
+  local dev
+  need parted
+  dev="$(assert_disk "$1")"
+  assert_not_protected "$dev"
+  assert_unmounted_tree "$dev"
+  wipefs -a -- "$dev"
+  if command -v sgdisk >/dev/null 2>&1; then sgdisk --zap-all "$dev" >/dev/null; fi
+  parted -s -- "$dev" mklabel gpt mkpart primary 1MiB 100%
+  command -v partprobe >/dev/null 2>&1 && partprobe "$dev" || true
+  udevadm settle 2>/dev/null || true
+}
+
+cmd_format() {
+  local dev fs
+  dev="$(canonical_dev "$1")"
+  fs="${2:?filesystem required}"
+  assert_not_protected "$dev"
+  assert_unmounted_tree "$dev"
+  case "$fs" in
+    ext4) need mkfs.ext4; mkfs.ext4 -F "$dev" ;;
+    vfat|fat32) need mkfs.vfat; mkfs.vfat -F 32 "$dev" ;;
+    exfat) need mkfs.exfat; mkfs.exfat "$dev" ;;
+    *) fail "unsupported filesystem: $fs (allowed: ext4, vfat, exfat)" ;;
+  esac
+  sync
+}
+
+cmd_image() {
+  local image dev
+  image="$(realpath -- "${1:?image file required}")"
+  [[ -f "$image" ]] || fail "image is not a regular file: $image"
+  dev="$(assert_disk "${2:?target disk required}")"
+  assert_not_protected "$dev"
+  assert_unmounted_tree "$dev"
+  dd if="$image" of="$dev" bs=8M conv=fsync status=progress
+  sync
+  command -v partprobe >/dev/null 2>&1 && partprobe "$dev" || true
+  udevadm settle 2>/dev/null || true
+}
+
+cmd_copy_in() {
+  local src dev rel mp dest
+  src="$(realpath -- "${1:?source file required}")"
+  [[ -f "$src" ]] || fail "source is not a regular file: $src"
+  dev="$(canonical_dev "${2:?mounted device required}")"
+  assert_not_protected "$dev"
+  rel="${3:?relative destination required}"
+  mp="$(managed_mountpoint_for "$dev")"
+  dest="$(safe_target_path "$mp" "$rel")"
+  install -d -m 0755 "$(dirname -- "$dest")"
+  cp -a -- "$src" "$dest"
+}
+
+cmd_mkdir() {
+  local dev mp dest
+  dev="$(canonical_dev "${1:?mounted device required}")"
+  assert_not_protected "$dev"
+  mp="$(managed_mountpoint_for "$dev")"
+  dest="$(safe_target_path "$mp" "${2:?relative directory required}")"
+  install -d -m 0755 "$dest"
+}
+
+cmd_remove() {
+  local dev mp target target_real
+  dev="$(canonical_dev "${1:?mounted device required}")"
+  assert_not_protected "$dev"
+  mp="$(managed_mountpoint_for "$dev")"
+  target="$(safe_target_path "$mp" "${2:?relative path required}")"
+  [[ -e "$target" || -L "$target" ]] || exit 0
+  target_real="$(realpath -m -- "$target")"
+  [[ "$target_real" == "$mp"/* ]] || fail "refusing removal outside managed mount"
+  rm -rf --one-file-system -- "$target"
+}
+
+usage() {
+  cat <<'EOF'
+Usage: openclaw-storage COMMAND [ARGS]
+
+Commands:
+  check
+  list
+  info DEVICE
+  mount DEVICE
+  unmount DEVICE
+  wipe DISK
+  partition-gpt DISK
+  format DEVICE {ext4|vfat|exfat}
+  image IMAGEFILE DISK
+  copy-in SOURCEFILE MOUNTED_DEVICE RELATIVE_DEST
+  mkdir MOUNTED_DEVICE RELATIVE_DIR
+  remove MOUNTED_DEVICE RELATIVE_PATH
+
+Destructive operations automatically refuse every physical disk backing
+/, /boot or /boot/firmware. Mounts created by this helper live below
+/mnt/openclaw-storage.
+EOF
+}
+
+[[ "${EUID}" -eq 0 ]] || fail "must run as root (normally via sudo -n)"
+cmd="${1:-}"
+shift || true
+case "$cmd" in
+  check) cmd_check "$@" ;;
+  list) cmd_list "$@" ;;
+  info) cmd_info "$@" ;;
+  mount) cmd_mount "$@" ;;
+  unmount) cmd_unmount "$@" ;;
+  wipe) cmd_wipe "$@" ;;
+  partition-gpt) cmd_partition_gpt "$@" ;;
+  format) cmd_format "$@" ;;
+  image) cmd_image "$@" ;;
+  copy-in) cmd_copy_in "$@" ;;
+  mkdir) cmd_mkdir "$@" ;;
+  remove) cmd_remove "$@" ;;
+  -h|--help|help|'') usage ;;
+  *) fail "unknown command: $cmd" ;;
+esac
