@@ -1,5 +1,9 @@
 commissioning_mode: true
-stage: 1
+stage: 0
+automatic_progression: true
+resume_after_reboot: true
+stop_on_blocker: true
+max_stage: 9
 
 features:
   gui: true
@@ -13,17 +17,39 @@ features:
   wifi_scan: true
   wifi_write: false
   mqtt_explorer: false
-  autostart: false
+  autostart: true
 
 safety:
   allow_network_changes: false
   allow_credential_changes: false
   show_commissioning_banner: true
   fail_safe_to_demo_data: true
+  rollback_before_risky_changes: true
+
+retry:
+  transient_max_attempts: 5
+  initial_delay_seconds: 10
+  max_delay_seconds: 300
+
+reporting:
+  enabled: true
+  progress_interval_minutes: 30
+  report_on_boot: true
+  report_on_stage_start: true
+  report_on_stage_complete: true
+  report_on_retry: true
+  report_on_error: true
+  report_on_blocker: true
+  report_on_finish: true
+  use_openclaw_primary_channel: true
+  mqtt_status_enabled: true
+  mqtt_base_topic: dab-touchscreen/status
 
 paths:
   state_file: /var/lib/dab-touchscreen/commissioning-state.json
   secrets_file: /etc/dab-touchscreen/secrets.env
+  log_file: /var/log/dab-touchscreen/commissioning.log
+  backup_dir: /var/lib/dab-touchscreen/backups
 
 ui:
   keyboard_avoidance: true
