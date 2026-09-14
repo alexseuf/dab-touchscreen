@@ -1,0 +1,136 @@
+#!/bin/bash
+set -euo pipefail
+
+# Root-owned, narrowly scoped deployment helper for autonomous OpenClaw maintenance.
+# It is intentionally the only command granted passwordless sudo by the provisioning script.
+
+DST="/opt/dab-touchscreen"
+ALLOWED_SERVICES=(
+  "dab-firstboot.service"
+  "dab-gui.service"
+  "dab-topics.service"
+  "dab-simulator.service"
+)
+
+fail() {
+  echo "dab-deploy: $*" >&2
+  exit 2
+}
+
+require_root() {
+  [ "${EUID}" -eq 0 ] || fail "must run as root (normally via sudo -n)"
+}
+
+service_allowed() {
+  local requested="${1:-}"
+  local unit
+  for unit in "${ALLOWED_SERVICES[@]}"; do
+    [ "$requested" = "$unit" ] && return 0
+  done
+  return 1
+}
+
+safe_source() {
+  local source="${1:-}"
+  [ -n "$source" ] || fail "source directory required"
+  [ -d "$source" ] || fail "source directory does not exist: $source"
+
+  local real
+  real="$(realpath -e -- "$source")"
+
+  # Autonomous deployment is deliberately restricted to an OpenClaw-owned
+  # working tree below /home/openclaw. The helper can only write to DST.
+  case "$real" in
+    /home/openclaw/*) ;;
+    *) fail "source must be below /home/openclaw" ;;
+  esac
+
+  [ -f "$real/PROJECT_PROMPT.md" ] || fail "not a DAB project tree: PROJECT_PROMPT.md missing"
+  printf '%s\n' "$real"
+}
+
+cmd_check() {
+  require_root
+  [ -d "$DST" ] || fail "$DST missing"
+  command -v rsync >/dev/null || fail "rsync missing"
+  command -v systemctl >/dev/null || fail "systemctl missing"
+  echo "PASS dab_deploy_root_helper"
+  echo "PASS dab_deploy_target_$DST"
+  echo "PASS dab_deploy_service_allowlist"
+}
+
+cmd_deploy() {
+  require_root
+  local source
+  source="$(safe_source "${1:-}")"
+
+  install -d -o root -g root -m 0755 "$DST"
+  rsync -a --delete \
+    --exclude '.git' \
+    --exclude 'secrets.env' \
+    --exclude '.env' \
+    --exclude '__pycache__' \
+    -- "$source/" "$DST/"
+
+  chown -R root:root "$DST"
+  echo "Deployed $source -> $DST"
+}
+
+cmd_restart() {
+  require_root
+  local unit="${1:-}"
+  service_allowed "$unit" || fail "service not allowed: $unit"
+  systemctl restart "$unit"
+  systemctl --no-pager --full status "$unit" | head -n 20
+}
+
+cmd_status() {
+  require_root
+  local unit="${1:-}"
+  service_allowed "$unit" || fail "service not allowed: $unit"
+  systemctl --no-pager --full status "$unit"
+}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  dab-deploy check
+  dab-deploy deploy /home/openclaw/<project-working-tree>
+  dab-deploy restart <allowed.service>
+  dab-deploy status <allowed.service>
+
+Allowed services:
+  dab-firstboot.service
+  dab-gui.service
+  dab-topics.service
+  dab-simulator.service
+EOF
+}
+
+case "${1:-}" in
+  check)
+    shift
+    cmd_check "$@"
+    ;;
+  deploy)
+    shift
+    [ "$#" -eq 1 ] || fail "deploy expects exactly one source directory"
+    cmd_deploy "$@"
+    ;;
+  restart)
+    shift
+    [ "$#" -eq 1 ] || fail "restart expects exactly one service"
+    cmd_restart "$@"
+    ;;
+  status)
+    shift
+    [ "$#" -eq 1 ] || fail "status expects exactly one service"
+    cmd_status "$@"
+    ;;
+  -h|--help|help|"")
+    usage
+    ;;
+  *)
+    fail "unknown command: $1"
+    ;;
+esac
