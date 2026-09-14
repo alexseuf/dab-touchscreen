@@ -127,3 +127,32 @@ Die SSD ist erst fertig, wenn u. a. folgende Punkte PASS sind:
 - Display/Touch 180°, First-Boot, persistenter Status und Neustart/Fortsetzung getestet;
 - keine Secrets im Git;
 - automatischer Phasenablauf startet ohne Nutzerbefehl.
+
+## Autonome Verwaltung angeschlossener Datenträger auf dem OpenClaw-Host
+
+Der **OpenClaw-Management-Raspberry selbst** soll zusätzlich angeschlossene SSDs, USB-Sticks und andere Blockgeräte ohne Passwort- oder Freigaberückfrage vorbereiten können. Diese Funktion gehört auf den OpenClaw-Host, nicht in die Root-Rechte des DAB-Zielsystems.
+
+Dafür ist `scripts/openclaw-storage` als root-eigener Helper nach `/usr/local/sbin/openclaw-storage` zu installieren. Die Installation erfolgt mit:
+
+```bash
+sudo OPENCLAW_ADMIN_USER=openclaw ./scripts/install_openclaw_storage_helper.sh
+```
+
+Die sudoers-Regel darf ausschließlich diesen Helper freigeben; allgemeines `NOPASSWD: ALL` bleibt verboten. Der Helper muss die physischen Datenträger hinter `/`, `/boot` und `/boot/firmware` automatisch erkennen und **jede verändernde oder destruktive Operation auf diesen System-/Boot-Datenträgern verweigern**. Wenn der Systemdatenträger nicht eindeutig ermittelt werden kann, muss die Operation fehlschlagen statt zu raten.
+
+Der Helper unterstützt insbesondere Erkennen/Info, Mount/Unmount, Löschen von Dateisystemsignaturen, GPT-Neuanlage, Formatierung, Schreiben kompletter Images sowie kontrollierte Dateioperationen innerhalb verwalteter Mounts. Details und Betriebsregeln stehen in `docs/OPENCLAW_STORAGE_AUTONOMY.md`.
+
+Verbindlicher Preflight auf dem OpenClaw-Host:
+
+```text
+PASS openclaw_storage_root_helper
+PASS protected_system_disk=<device>
+PASS openclaw_storage_mount_root=/mnt/openclaw-storage
+PASS openclaw_storage_noninteractive
+```
+
+Mit einem entbehrlichen externen Testdatenträger muss mindestens einmal vollständig geprüft werden:
+
+`list -> info -> wipe -> partition-gpt -> format -> mount -> copy-in -> remove -> unmount`
+
+Erst danach darf OpenClaw die Datenträgerverwaltung als autonom betriebsbereit betrachten. Bei mehreren externen Datenträgern muss OpenClaw das Ziel anhand von Modell, Seriennummer, Größe und Transportart eindeutig bestimmen; bei Mehrdeutigkeit darf nicht geraten werden.
