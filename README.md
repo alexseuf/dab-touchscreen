@@ -10,6 +10,36 @@ Dieses Repository beschreibt und implementiert eine Touch-HMI für einen Raspber
 - Ethernet und WLAN
 - lokaler MQTT-Broker
 
+## Schrittweise Inbetriebnahme
+
+Das Projekt ist ausdrücklich so aufgebaut, dass nicht alle Funktionen gleichzeitig aktiviert werden müssen. Die Inbetriebnahme erfolgt in Stufen 0 bis 9. Jede Stufe schaltet nur die Funktionen frei, die für diesen Teststand benötigt werden.
+
+Details: [`COMMISSIONING.md`](COMMISSIONING.md)
+
+Aktuelle Stufe und Feature-Flags: [`config/commissioning.yaml`](config/commissioning.yaml)
+
+Beispiele:
+
+```bash
+python3 -m src.main --stage 1
+python3 scripts/commissioning_check.py --stage 1
+```
+
+Stufenübersicht:
+
+- 0: Raspberry Pi / SSD / Display / Netzwerkhardware
+- 1: GUI offline mit Demo-Daten
+- 2: lokaler MQTT-Broker und MQTT-Testdaten
+- 3: reale MQTT-Daten und Topic-Mapping
+- 4: Historie und Diagramme
+- 5: schreibende LAN-Konfiguration
+- 6: schreibende WLAN-Konfiguration und lokale Credentials
+- 7: MQTT-Explorer
+- 8: Autostart und Dauerbetrieb
+- 9: Produktionsbetrieb
+
+Netzwerk- und Credential-Änderungen sind in frühen Stufen absichtlich gesperrt. Dadurch kann die HMI zunächst gefahrlos getestet werden.
+
 ## Systemarchitektur
 
 ![Systemarchitektur](docs/images/architecture.svg)
@@ -56,6 +86,10 @@ Topic-Baum und eingehende MQTT-Nachrichten möglichst ähnlich zu MQTT Explorer,
 - `OPEN_QUESTIONS.md` – noch zu klärende Punkte
 - `UI_SPEC.md` – Display- und Bedienkonzept
 - `ARCHITECTURE.md` – Softwarearchitektur, Komponenten, Datenfluss und Ziel-Verzeichnisstruktur
+- `COMMISSIONING.md` – verbindlicher Stufenplan für Entwicklung und Inbetriebnahme
+- `config/commissioning.yaml` – Freigabe der Funktionen je Inbetriebnahmestand
+- `scripts/commissioning_check.py` – Diagnose- und Abnahmetest für die aktive Stufe
+- `src/main.py` – stufenfähiger Anwendungseinstieg
 - `docs/images/*.svg` – visuelle Referenz für alle fünf Display-Reiter und die Systemarchitektur
 
 ## Wichtige Architekturvorgaben
@@ -67,5 +101,7 @@ Topic-Baum und eingehende MQTT-Nachrichten möglichst ähnlich zu MQTT Explorer,
 - Netzwerkkonfiguration über NetworkManager kapseln.
 - Anwendung und Broker über systemd starten und überwachen.
 - Einen MQTT-Simulator für die Entwicklung ohne angeschlossenen Leistungsteil vorsehen.
+- Schreibende Funktionen erst in der zugehörigen Inbetriebnahmestufe aktivieren.
+- Zugangsdaten ausschließlich lokal speichern und niemals in Git committen.
 
 Die exakten MQTT-Topic-Namen und Payload-Formate werden in einem zweiten Schritt anhand der realen MQTT-Explorer-Darstellung festgelegt. Die Software soll deshalb Topic-Mappings konfigurierbar halten und nicht hart in der GUI verteilen.
