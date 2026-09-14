@@ -1,0 +1,19 @@
+[Unit]
+Description=DAB Touchscreen autonomous commissioning
+After=network-online.target NetworkManager.service mosquitto.service
+Wants=network-online.target
+ConditionPathExists=/opt/dab-touchscreen/config/commissioning.yaml
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/dab-touchscreen
+ExecStart=/usr/bin/python3 /opt/dab-touchscreen/scripts/autonomous_commissioning.py
+Restart=on-failure
+RestartSec=30
+StartLimitIntervalSec=0
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
