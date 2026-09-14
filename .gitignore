@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local runtime state
+commissioning-state.json
+*.sqlite
+*.sqlite3
+*.db
+logs/
+
+# Local secrets - NEVER COMMIT
+secrets.env
+*.secrets
+*.secret
+config/local*.yaml
+config/local*.yml
+.env
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
