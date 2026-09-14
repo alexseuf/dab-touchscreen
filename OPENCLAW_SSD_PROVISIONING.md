@@ -29,11 +29,45 @@ OpenClaw soll die SSD nicht nur mit Dateien versehen, sondern vor dem Umstecken 
     - `sshd` ist aktiviert und startet beim Boot;
     - Passwort-Login darf deaktiviert bleiben, sobald Public-Key-Login funktionsfähig vorbereitet ist.
 14. Falls das Konto nach dem Image-/Provisioning-Schritt gesperrt ist, muss OpenClaw es **vor dem ersten Boot** entsperren. Dabei kein leeres Passwort erzeugen. Entweder ein bereits lokal geschütztes Passwort/Hash setzen oder einen vorhandenen gültigen Hash verwenden und danach Public-Key-Login sicherstellen.
-15. Display- und Touch-Ausrichtung als Systemparameter vorbereiten. Für dieses Projekt ist die Sollausrichtung **180°**. Display und Touch müssen gemeinsam gedreht werden, damit Anzeige und Touch-Koordinaten übereinstimmen.
-16. Testen, dass der First-Boot-Dienst nach einem simulierten Neustart automatisch startet.
-17. Testen, dass ein Fortschrittsbericht erfolgreich beim Benutzer ankommt.
-18. Testen, dass der persistente Phasenstatus nach Dienstneustart erhalten bleibt.
-19. Erst danach die SSD als bereit zum Einbau melden.
+15. Den root-eigenen, eng begrenzten Wartungshelfer `/usr/local/sbin/dab-deploy` installieren und für den OpenClaw-Administrationsbenutzer über eine eigene Datei unter `/etc/sudoers.d/` **passwortlos ausschließlich für diesen Helper** freigeben. Allgemeines `NOPASSWD: ALL` ist ausdrücklich verboten.
+16. Den Wartungshelfer noch während der SSD-Provisionierung nicht-interaktiv testen: `sudo -n /usr/local/sbin/dab-deploy check` muss als OpenClaw-Administrationsbenutzer erfolgreich sein. Ein später benötigtes, nicht gespeichertes Wartungspasswort gilt als Provisionierungsfehler.
+17. Display- und Touch-Ausrichtung als Systemparameter vorbereiten. Für dieses Projekt ist die Sollausrichtung **180°**. Display und Touch müssen gemeinsam gedreht werden, damit Anzeige und Touch-Koordinaten übereinstimmen.
+18. Testen, dass der First-Boot-Dienst nach einem simulierten Neustart automatisch startet.
+19. Testen, dass ein Fortschrittsbericht erfolgreich beim Benutzer ankommt.
+20. Testen, dass der persistente Phasenstatus nach Dienstneustart erhalten bleibt.
+21. Erst danach die SSD als bereit zum Einbau melden.
+
+## Verbindlicher autonomer Root-/Deploy-Zugriff
+
+Der Zielzustand ist: OpenClaw kann spätere DAB-Änderungen ohne Benutzerpasswort durchführen, besitzt aber **kein allgemeines passwortloses Root-Recht**.
+
+Dafür ist bereits beim Bespielen der SSD der mit dem Repository gelieferte Helper `scripts/dab-deploy` root-eigen nach `/usr/local/sbin/dab-deploy` zu installieren. Die Sudo-Regel darf nur genau diesen Helper erlauben. Der Helper selbst begrenzt die privilegierten Aktionen auf:
+
+- Deployment des DAB-Projekts nach `/opt/dab-touchscreen`;
+- Status und Neustart einer festen Allowlist von DAB-Diensten;
+- einen nicht verändernden `check`-Preflight.
+
+Die Datei `/usr/local/sbin/dab-deploy` muss `root:root` gehören und darf für den OpenClaw-Benutzer nicht beschreibbar sein. Auch die Datei unter `/etc/sudoers.d/` muss `root:root`, Modus `0440`, besitzen und mit `visudo -cf` validiert werden.
+
+Pflichttest vor dem Aushängen der SSD:
+
+```bash
+sudo -u openclaw sudo -n /usr/local/sbin/dab-deploy check
+```
+
+Erwartet:
+
+```text
+PASS dab_deploy_root_helper
+PASS dab_deploy_target_/opt/dab-touchscreen
+PASS dab_deploy_service_allowlist
+```
+
+Falls der konkrete Administrationsbenutzer anders heißt, muss `OPENCLAW_ADMIN_USER` beim Installationsskript gesetzt und der Test mit diesem Benutzer ausgeführt werden.
+
+**Wichtig:** Ein zufällig gesetztes Wartungspasswort darf nicht die einzige Möglichkeit für spätere Änderungen unter `/opt`, `systemctl restart` oder andere projektbezogene Wartung sein. OpenClaw soll dieses Passwort weder kennen noch speichern müssen. Der eingeschränkte Helper ist der vorgesehene autonome Wartungsweg.
+
+Wenn später weitere DAB-Dienste benötigt werden, muss deren exakter Unit-Name bereits während einer privilegierten Provisionierungs-/Update-Phase in die Allowlist des Helpers aufgenommen werden. Wildcards für beliebige Systemdienste sind nicht zulässig.
 
 ## Verbindlicher Locale-/Zeit-Preflight
 
@@ -58,6 +92,7 @@ PASS account_unlocked
 PASS sshd_enabled
 PASS authorized_keys_present
 PASS ssh_permissions
+PASS dab_deploy_noninteractive
 PASS display_rotation_180_configured
 PASS touch_rotation_180_configured
 ```
@@ -82,7 +117,7 @@ Nach Einschalten darf kein manueller Startbefehl notwendig sein.
 
 Der Ablauf muss automatisch sein:
 
-`Boot -> Netzwerk -> Locale/Zeit prüfen -> SSH/Remotezugriff prüfen -> OpenClaw -> Projektstatus lesen -> nächste Phase umsetzen -> Phase testen -> Status speichern -> berichten -> nächste Phase`
+`Boot -> Netzwerk -> Locale/Zeit prüfen -> SSH/Remotezugriff prüfen -> OpenClaw -> privilegierten DAB-Helper prüfen -> Projektstatus lesen -> nächste Phase umsetzen -> Phase testen -> Status speichern -> berichten -> nächste Phase`
 
 Bei Neustart:
 
@@ -98,11 +133,12 @@ Sobald Netzwerk verfügbar ist, führt OpenClaw zuerst einen Remote-Preflight au
 2. Ping bzw. Erreichbarkeit prüfen.
 3. TCP/22 prüfen.
 4. Einen **echten SSH-Login mit dem vorgesehenen Schlüssel** testen.
-5. Zeitzone, Uhrzeit/NTP, deutsche Locale und deutsches Tastaturlayout verifizieren und bei Bedarf automatisch korrigieren.
-6. Erst wenn der SSH-Login erfolgreich ist, das System als remote wartbar markieren.
-7. Danach Display/Kiosk-Zustand prüfen (`systemctl`, `journalctl`, grafische Session, Anwendung/Kiosk-Prozess).
+5. `sudo -n /usr/local/sbin/dab-deploy check` ausführen und sicherstellen, dass keine Passwortabfrage erscheint.
+6. Zeitzone, Uhrzeit/NTP, deutsche Locale und deutsches Tastaturlayout verifizieren und bei Bedarf automatisch korrigieren.
+7. Erst wenn SSH-Login und DAB-Helper-Test erfolgreich sind, das System als vollständig remote wartbar markieren.
+8. Danach Display/Kiosk-Zustand prüfen (`systemctl`, `journalctl`, grafische Session, Anwendung/Kiosk-Prozess).
 
-Nur `Ping OK` und `Port 22 offen` gelten ausdrücklich **nicht** als erfolgreicher SSH-Test.
+Nur `Ping OK` und `Port 22 offen` gelten ausdrücklich **nicht** als erfolgreicher SSH-Test. Ebenso gilt ein funktionierender SSH-Login allein nicht als ausreichende autonome Wartbarkeit, wenn projektbezogene Root-Schritte später wieder an einer Passwortabfrage hängen bleiben.
 
 ## Fortschrittskommunikation
 
@@ -130,7 +166,9 @@ Nur anhalten, wenn:
 - reale MQTT-Daten für die nächste Phase zwingend fehlen;
 - eine Änderung nicht sicher automatisierbar oder rollbackfähig ist.
 
-In diesem Fall vorherige stabile Phase erhalten und präzise melden, was benötigt wird.
+Ein fehlender `sudo`-Zugang für reguläre DAB-Projektpflege darf **nach abgeschlossener SSD-Provisionierung nicht mehr als normaler Blocker auftreten**. Dieser Fall muss vorher durch Installation und Test des eingeschränkten `dab-deploy`-Helpers verhindert werden.
+
+In einem echten Blocker vorherige stabile Phase erhalten und präzise melden, was benötigt wird.
 
 ## Abnahme der SSD-Vorbereitung
 
@@ -152,6 +190,11 @@ Die Vorbereitung ist erst abgeschlossen, wenn alle folgenden Punkte mit PASS bes
 - [ ] OpenClaw Public Key in `authorized_keys`
 - [ ] SSH-Dateirechte/Eigentümer korrekt
 - [ ] `ssh.service` enabled
+- [ ] `/usr/local/sbin/dab-deploy` root-eigen installiert
+- [ ] sudoers-Regel ausschließlich für `dab-deploy`, kein `NOPASSWD: ALL`
+- [ ] `visudo -cf` für die DAB-sudoers-Datei erfolgreich
+- [ ] `sudo -n /usr/local/sbin/dab-deploy check` als OpenClaw-Benutzer erfolgreich
+- [ ] DAB-Dienst-Allowlist für GUI/Topics/Simulator vollständig
 - [ ] Display auf 180° vorbereitet
 - [ ] Touch auf 180° vorbereitet
 - [ ] First-Boot-Dienst enabled
