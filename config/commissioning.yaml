@@ -1,0 +1,30 @@
+commissioning_mode: true
+stage: 1
+
+features:
+  gui: true
+  demo_data: true
+  mqtt_broker: false
+  mqtt_client: false
+  real_mqtt_mapping: false
+  history: false
+  ethernet_read: true
+  ethernet_write: false
+  wifi_scan: true
+  wifi_write: false
+  mqtt_explorer: false
+  autostart: false
+
+safety:
+  allow_network_changes: false
+  allow_credential_changes: false
+  show_commissioning_banner: true
+  fail_safe_to_demo_data: true
+
+paths:
+  state_file: /var/lib/dab-touchscreen/commissioning-state.json
+  secrets_file: /etc/dab-touchscreen/secrets.env
+
+ui:
+  keyboard_avoidance: true
+  restore_scroll_position_after_keyboard: true
