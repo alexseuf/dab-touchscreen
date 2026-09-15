@@ -76,6 +76,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self,model,config,history=None):
         super().__init__();self.model=model;self.config=config;self.history=history;self.mqtt=None;self.threadpool=QtCore.QThreadPool.globalInstance();self._keyboard_process=None;self._wifi_status_running=False
         self.setWindowTitle(config['app'].get('title','DAB Touchscreen'));self.resize(800,480);self.setMinimumSize(800,480);self._main_return_index=0;self._cpu_sample=None
+        if os.environ.get('XDG_SESSION_TYPE')=='wayland' or os.environ.get('WAYLAND_DISPLAY'):
+            self.setWindowFlag(QtCore.Qt.FramelessWindowHint,True);QtCore.QTimer.singleShot(0,self.showFullScreen)
         self.samples={k:deque(maxlen=3600) for k in model.definitions};self.cards={};self.explorer={}
         self.nav_stack=QtWidgets.QStackedWidget();self.setCentralWidget(self.nav_stack)
         self.tabs=QtWidgets.QTabWidget();self.tabs.addTab(self._overview(),'Übersicht');self.tabs.addTab(self._charts(),'Verläufe');self.tabs.addTab(self._mqtt_page(),'MQTT Explorer');self.tabs.addTab(QtWidgets.QWidget(),'⚙ Einstellungen');self.tabs.currentChanged.connect(self._main_tab_changed);self.nav_stack.addWidget(self.tabs)
@@ -266,6 +268,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def _connect_wifi(self):
         ssid=self.wifi_ssid.text().strip()
         if not ssid:self.wifi_result.setText('Bitte zuerst ein WLAN auswählen');return
+        selected=self.wifi_list.currentItem();security=selected.text().upper() if selected else ''
+        if ('WPA' in security or 'WEP' in security) and len(self.wifi_password.text())<8:
+            self.wifi_result.setText("<span style='color:#e63946;font-size:22px'>●</span> <b>Passwort zu kurz</b><br>WPA/WPA2 benötigt mindestens 8 Zeichen.");return
         self._hide_touch_keyboard()
         self.wifi_result.setText(f'Verbinde mit {ssid} …');self._run_worker(connect_wifi,(ssid,self.wifi_password.text(),self.config['network']['wifi_interface']),self._connection_finished)
     def _disconnect_wifi(self):self.wifi_result.setText('WLAN wird getrennt …');self._run_worker(disconnect_wifi,(self.config['network']['wifi_interface'],),self._connection_finished)
