@@ -1,66 +1,37 @@
-# UI-Spezifikation – 7" Touchdisplay
+# UI-Spezifikation – offizielles 7" Raspberry-Pi-Touchdisplay
 
-## Allgemein
+## Verbindliche Zielauflösung
 
-Zielauflösung vorläufig 1024×600 im Querformat. Dark-Theme, hohe Kontraste, große Touch-Flächen. Oben permanent eine Tab-Leiste:
+Die reale Zielhardware ist das offizielle 7-Zoll-Raspberry-Pi-Touchdisplay der ersten Generation mit **800×480 Pixeln im Querformat**. Alle Referenzbilder, Layouts und Abnahmetests müssen deshalb primär für **800×480** entworfen werden. 1024×600 darf nicht mehr als Designgrundlage verwendet werden.
 
-`Übersicht | Verläufe | Netzwerk (LAN) | WLAN | MQTT Explorer`
+Dark-Theme, hohe Kontraste, große Touch-Flächen. Keine Referenzgrafik darf mehr Informationen zeigen, als bei 800×480 sinnvoll lesbar und bedienbar umgesetzt werden können. Mindest-Touchziel ca. 48×48 px, normale UI-Schrift bevorzugt 16–20 px, wichtige Werte größer. Lange Beschriftungen kürzen statt Schrift unlesbar klein zu skalieren.
 
-Statusleiste unten oder kompakt im Header: Brokerstatus, Ethernet/WLAN, Datenalter, Uhrzeit.
+Oben permanent eine kompakte Tab-Leiste:
+
+`Übersicht | Verläufe | LAN/MQTT | WLAN | MQTT`
+
+Status kompakt im Header oder Footer: Brokerstatus, Ethernet/WLAN, Datenalter, Uhrzeit. Vertikalen Platz sparsam verwenden.
 
 ## 1. Übersicht
 
-Zentrale schematische Darstellung:
-
-```text
-  3~ Netz              PFC             Zwischenkreis             DAB              DC-Ausgang
-┌──────────┐       ┌──────────┐          ┌─────┐             ┌──────────┐        ┌──────────┐
-│ L1 L2 L3 │ ────▶ │ 3~ → DC  │ ───────▶ │ Cdc │ ──────────▶ │ DC ↔ DC  │ ─────▶ │ U / I / P│
-└──────────┘       └──────────┘          └─────┘             └──────────┘        └──────────┘
- U1 U2 U3           Pin / T_PFC            Udc                Tpri / Tsec         Uout Iout Pout
- I1 I2 I3                                                                 
- f
-```
-
-Unterer Bereich: Temperaturkarten für PFC, Drossel, DAB primär, DAB sekundär und Trafo. Ungültige/veraltete Werte grau oder eindeutig markiert; Alarmfarben erst verwenden, wenn Grenzwerte definiert sind.
+Energiefluss Netz → PFC → Zwischenkreis → DAB → DC-Ausgang. Nur die wichtigsten Live-Werte gleichzeitig zeigen. Temperaturen kompakt in einer unteren Zeile bzw. Karten. Detailwerte über Touch aufrufen statt die Hauptseite zu überladen.
 
 ## 2. Verläufe
 
-- Plotfläche maximal groß
-- Zeitachse horizontal
-- auswählbare Kurven
-- gruppierte Skalen: Spannung, Strom, Leistung, Temperatur
-- Touch-Gesten für Zoom/Pan
-- Buttons `1 min`, `10 min`, `1 h`, `6 h`, `24 h`, `Reset`
-- Tooltip/Cursor für Werte an einem Zeitpunkt, sofern touch-tauglich
+Plotfläche maximal groß. Zeitbereich über große Touch-Schaltflächen; Kurvenauswahl ggf. über Dialog. Zoom/Pan per Touch. Achsenbeschriftungen auf 800×480 reduzieren. Legende kompakt.
 
 ## 3. LAN / MQTT
 
-Linke Hälfte: Ethernet. Rechte Hälfte: Broker.
-
-Ethernet: DHCP/Fest, IP, Prefix/Netzmaske, Gateway, DNS, aktuelle Adresse, Linkstatus.
-
-Broker: läuft/gestoppt, Port, Authentifizierung, Anzahl verbundener Clients sofern leicht verfügbar. Einstellungen mit `Übernehmen` und klarer Fehlerausgabe.
+Bei 800×480 keine überladene Desktop-Zweispaltenansicht. Ethernet und Broker in zwei klaren Bereichen mit nur den unmittelbar relevanten Feldern. Erweiterte Einstellungen können über Unterdialoge geöffnet werden. Bildschirmtastatur muss das aktive Eingabefeld sichtbar lassen; Inhalt bei Bedarf nach oben verschieben/scrollen.
 
 ## 4. WLAN
 
-Dreispaltig oder zweispaltig:
-
-- Liste gescannter SSIDs mit Signalstärke
-- Zugangsdaten/Verbinden
-- aktueller Status mit SSID, RSSI, IP-Adresse
-
-Passwortfeld standardmäßig verdeckt, optional kurz sichtbar schaltbar.
+Zweispaltig: links SSID-Liste, rechts Verbindung/Status. Zeilen und Buttons touch-tauglich. Passwortfeld verdeckt, optional sichtbar. Bei Bildschirmtastatur muss das aktive Feld oberhalb der Tastatur sichtbar bleiben.
 
 ## 5. MQTT Explorer
 
-Für 1024×600 bevorzugt Split-View:
+Bei 800×480 Split-View ungefähr 38/62 %. Links Topic-Baum, rechts selektiertes Topic/Payload. Detailinformationen priorisieren; QoS/Retain/Zeit kompakt. Roh-/JSON-Ansicht darf scrollen. Suchfeld ggf. als aufklappbare Funktion, damit nicht dauerhaft wertvolle Höhe verloren geht.
 
-- links ca. 40 %: scrollbarer Topic-Baum
-- rechts ca. 60 %: Details des selektierten Topics
+## Responsivität und Abnahme
 
-Detailbereich: Topic, letzter Payload, Zeitstempel/Alter, QoS, Retain, Rohansicht und formatierte JSON-Ansicht. Oben Suchfeld. Bei sehr vielen Updates Detailansicht begrenzen/drosseln.
-
-## Responsivität
-
-Die Anwendung soll nicht auf exakt 1024×600 fest codiert werden. Layouts müssen bei abweichender Displayauflösung skalieren. Mindestschriftgröße und Touch-Zielgröße sollen auf dem realen Display geprüft werden.
+800×480 ist die verbindliche Referenz. Höhere Auflösungen dürfen zusätzlichen Raum nutzen, aber keine Funktion darf 1024×600 voraussetzen. Jede Hauptansicht muss mit einem echten 800×480-Screenshot bzw. einem exakt 800×480 großen Referenz-SVG geprüft werden. Kein horizontaler Scrollbalken in Hauptansichten; wesentliche Bedienelemente müssen ohne Scrollen erreichbar sein. Touch-Tastatur darf das bearbeitete Feld nicht verdecken.
