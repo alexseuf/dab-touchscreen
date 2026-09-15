@@ -1,0 +1,19 @@
+app:
+  title: DAB Touchscreen
+  fullscreen: true
+  demo_data: true
+  stale_after_seconds: 5
+  history_days: 31
+  history_sample_seconds: 1
+mqtt:
+  host: 127.0.0.1
+  port: 1883
+  keepalive: 30
+  explorer_topic: "#"
+network:
+  ethernet_interface: eth0
+  wifi_interface: wlan0
+ui:
+  language: de
+  theme: dark
+  resolution: "800x480"

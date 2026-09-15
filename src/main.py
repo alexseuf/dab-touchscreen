@@ -66,12 +66,8 @@ def main() -> int:
     if args.check_only:
         return 0
 
-    # OpenClaw implementation hook:
-    # Instantiate only the services whose feature flags are enabled.
-    # The GUI must also hide/disable controls belonging to later stages.
-    # This entry point intentionally remains runnable before the full GUI exists.
-    print("Application scaffold ready. Implement stage-specific services incrementally.")
-    return 0
+    from src.app import run
+    return run()
 
 
 if __name__ == "__main__":
