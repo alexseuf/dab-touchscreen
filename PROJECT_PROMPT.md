@@ -2,193 +2,80 @@
 
 ## Ziel
 
-Baue auf der angeschlossenen 100‑GB-USB-SSD ein möglichst vollständig vorbereitetes System, das später an einem Raspberry Pi 4 mit 7‑Zoll-Touchdisplay betrieben wird. Das System dient als lokale HMI/Monitoring-Oberfläche für einen Leistungselektronik-Aufbau aus dreiphasiger PFC, DC-Zwischenkreis und nachgeschaltetem Dual Active Bridge (DAB).
+Baue und pflege auf Raspberry Pi 4 mit offiziellem 7-Zoll-Touchdisplay eine lokale HMI/Monitoring-Oberfläche für dreiphasige PFC, DC-Zwischenkreis und Dual Active Bridge (DAB). Die verbindliche Referenzauflösung des Displays ist **800×480 Pixel im Querformat**.
 
-Arbeite reproduzierbar, dokumentiere alle Installations- und Konfigurationsschritte im Repository und vermeide unnötige Abhängigkeiten von Cloud-Diensten. Das Zielsystem soll nach dem Umstecken der SSD auf den Raspberry Pi möglichst einfach in Betrieb genommen werden können.
+Das Zielsystem stellt einen lokalen MQTT-Broker bereit, visualisiert MQTT-Daten, unterstützt Ethernet/WLAN, startet automatisch fullscreen und bleibt bei fehlenden/stale Daten bedienbar. Konfiguration, Topic-Mapping und GUI-Logik bleiben getrennt. Zugangsdaten niemals in Git, Screenshots oder normalen Logs speichern.
 
-## Architektur
+## Touch-Bedienung
 
-Das Zielsystem muss:
+Alle Eingaben müssen über Touch möglich sein. Sobald die Bildschirmtastatur erscheint, muss das fokussierte Eingabefeld vollständig sichtbar bleiben; die GUI verschiebt/scrollt den Inhalt generisch. Nach Schließen der Tastatur kehrt die Ansicht sinnvoll zurück.
 
-- einen lokalen MQTT-Broker bereitstellen, vorzugsweise Mosquitto;
-- MQTT-Daten lokal abonnieren und visualisieren;
-- Ethernet und WLAN unterstützen;
-- vollständig per 7‑Zoll-Touchdisplay bedienbar sein;
-- nach dem Boot automatisch in die HMI starten (Kiosk/Fullscreen);
-- bei Ausfall einzelner MQTT-Werte weiterlaufen und fehlende/stale Werte klar kennzeichnen;
-- Konfiguration und Topic-Mapping von der GUI-Logik trennen;
-- Logs und Diagnoseinformationen lokal bereitstellen;
-- möglichst robust gegen Stromausfall und fehlerhafte MQTT-Nachrichten sein.
+## Hauptnavigation und Einstellungs-Untermenü
 
-## Touch-Bedienung und Bildschirmtastatur
+Die Hauptnavigation enthält ausschließlich:
 
-Alle Eingaben müssen vollständig über das 7‑Zoll-Touchdisplay möglich sein.
+`Übersicht | Verläufe | MQTT Explorer | ⚙ Einstellungen`
 
-Besonders wichtig: Sobald für ein Eingabefeld die Bildschirmtastatur geöffnet wird, darf die Tastatur das aktive Eingabefeld nicht verdecken. Die GUI muss den sichtbaren Inhalt automatisch so verschieben bzw. scrollen, dass das fokussierte Eingabefeld vollständig oberhalb der Bildschirmtastatur sichtbar bleibt. Nach dem Schließen der Tastatur soll die Ansicht sinnvoll in die vorherige Position zurückkehren.
+Beim Öffnen von **⚙ Einstellungen** wird sie vollständig ersetzt durch:
 
-Dies gilt insbesondere für:
+`Netzwerk (LAN) | WLAN | System | ← Zurück`
 
-- IPv4-Adresse
-- Netzmaske/Prefix
-- Gateway
-- DNS
-- MQTT-Port
-- MQTT-Benutzername und Passwort
-- WLAN-SSID, falls manuelle Eingabe erforderlich ist
-- WLAN-Passwort
-- spätere Konfigurationsfelder
+Beide Navigationsebenen dürfen niemals gleichzeitig Platz beanspruchen. **← Zurück** stellt die Hauptnavigation wieder her. Diese Struktur entspricht der real implementierten Oberfläche und ist verbindlich.
 
-Die Lösung soll generisch implementiert werden und nicht als Sonderfall für einzelne Felder.
+## Übersicht / Live-Daten
 
-## Zugangsdaten und dauerhafte Wartbarkeit durch OpenClaw
+Zeige `3~ Netz → PFC → DC-Zwischenkreis → DAB → DC-Ausgang` sowie Effektivspannungen/-ströme L1-L3, Netzfrequenz, Eingangsleistung, Zwischenkreisspannung, Ausgangsspannung/-strom/-leistung und Temperaturen von PFC, DAB primär/sekundär, Drossel und Trafo. MQTT-Verbindung, Datenalter und Betriebsbereitschaft anzeigen; stale Werte eindeutig kennzeichnen.
 
-OpenClaw soll das System auch Monate später noch selbstständig warten und ändern können. Dafür müssen alle für Wartung und Administration benötigten Benutzernamen, Zugangsdaten und Passwörter auf dem Zielsystem dauerhaft verfügbar sein.
+## Verläufe
 
-WICHTIG: Zugangsdaten niemals im GitHub-Repository, in Markdown-Dateien, Quellcode, Screenshots oder normalen Logs im Klartext speichern.
+Zeitreihen mit Touch-Zoom/Pan, Reset, wählbaren Zeitfenstern, sinnvollen Skalen für Spannung/Strom/Leistung/Temperatur und ein-/ausblendbaren Kurven. Historie nach GUI-Neustart erhalten, sofern Logging aktiv.
 
-Vorgabe für die Umsetzung:
+## MQTT Explorer
 
-- Zugangsdaten ausschließlich lokal auf dem Raspberry Pi bzw. der System-SSD speichern;
-- bevorzugt vorhandene sichere Mechanismen verwenden, z. B. NetworkManager-Verbindungsprofile, systemd Credentials, Secret Service/Keyring oder eine dedizierte lokale Secret-Datei mit restriktiven Dateirechten;
-- falls eine lokale Secret-Datei erforderlich ist: Eigentümer root bzw. der Dienstbenutzer und Dateirechte maximal `0600`;
-- Secret-Dateien müssen über `.gitignore` ausdrücklich vom Repository ausgeschlossen sein;
-- OpenClaw muss dokumentieren, wo die lokalen Credentials liegen und wie sie für spätere Wartungsarbeiten gelesen bzw. geändert werden;
-- Passwörter niemals in Debug-Ausgaben oder normalen Applikationslogs ausgeben;
-- GUI-Passwortfelder standardmäßig maskieren;
-- Backup/Restore-Konzept für lokale Credentials dokumentieren, ohne die Secrets in Git zu übertragen.
+Hierarchischer Topic-Baum, dynamische Topics, letzter Payload, Zeitstempel/Alter, QoS, Retain, Roh-Payload, JSON-Formatierung und Filterfunktion. Hohe Nachrichtenrate darf UI nicht blockieren.
 
-OpenClaw soll sich damit die erforderlichen Zugangsdaten auf dem Zielsystem dauerhaft merken können, ohne sie öffentlich oder ungeschützt abzulegen.
+## Einstellungen – Netzwerk (LAN) und MQTT
 
-## Reiter 1 – Übersicht / Live-Daten
+DHCP/feste IPv4, Prefix, Gateway, DNS und aktuelle Ethernet-IP. Lokaler MQTT-Broker standardmäßig Port 1883, Brokerstatus, sinnvolle Bindung und optional Authentifizierung. Änderungen validieren und Recovery-Weg vorsehen.
 
-Zeige schematisch:
+## Einstellungen – WLAN
 
-`3~ Netz → PFC → DC-Zwischenkreis → DAB → DC-Ausgang`
+SSID-Scan, Auswahl, Touch-Passworteingabe, Verbinden/Trennen, Signalstärke, IPv4 und Status. Vorhandene sichere NetworkManager-Profile für das bekannte Hausnetz bevorzugt übernehmen; Secrets niemals in Git oder Logs.
 
-Darzustellende Live-Werte:
+## Einstellungen – System
 
-- Effektivspannung L1, L2, L3
-- Effektivstrom L1, L2, L3
-- Netzfrequenz
-- Eingangsleistung
-- Zwischenkreisspannung
-- Ausgangsspannung
-- Ausgangsstrom
-- Ausgangsleistung
-- Temperatur PFC-Leistungsteil
-- Temperatur primärseitige DAB-Halbbrücke
-- Temperatur sekundärseitige DAB-Halbbrücke
-- Drosseltemperatur
-- Trafotemperatur
+CPU-Auslastung, Arbeitsspeicher, CPU-Temperatur, Datenträgerbelegung, Laufzeit, Hostname, Betriebssystem und aktive IP-Adressen live anzeigen. Systemdaten asynchron aktualisieren. Große Touch-Schaltflächen für Neustart und Ausschalten; beide Aktionen nur nach eindeutiger Sicherheitsabfrage, Standardaktion Abbrechen.
 
-Zusätzlich Statusanzeigen vorsehen für MQTT-Verbindung, Datenalter und allgemeine Betriebsbereitschaft. Werte mit veraltetem Timestamp dürfen nicht wie gültige aktuelle Werte erscheinen.
+## GUI-Technik und visuelle Referenz
 
-## Reiter 2 – Verläufe
+Bevorzugter Stack: Python 3.11+, PySide6 oder PyQt6, PyQtGraph, paho-mqtt, NetworkManager/nmcli, Mosquitto, optional SQLite und systemd. Die SVG-Dateien unter `docs/images/` sind Design-Mock-ups und keine Screenshots eines anderen GUI-Frameworks. Die reale PySide6/PyQt6-Oberfläche soll mittels QSS möglichst nah an diesen Referenzen umgesetzt werden. Verbindliche Details zu Font, Abständen, Touchgrößen und 800×480 stehen in `UI_SPEC.md`.
 
-Stelle die Messwerte als Liniendiagramme dar. Anforderungen:
-
-- Touch-Zoom und Pan
-- Zoom zurücksetzen
-- wählbare Zeitfenster
-- mehrere Y-Achsen bzw. sinnvoll getrennte Skalen für Spannung, Strom, Leistung und Temperatur
-- Legende zum Ein-/Ausblenden einzelner Kurven
-- keine unlesbare Überlagerung sehr unterschiedlicher Größen
-- Historie auch nach GUI-Neustart verfügbar, sofern lokales Logging aktiviert ist
-
-## Reiter 3 – Ethernet und MQTT
-
-Ethernet-Konfiguration über Touch:
-
-- DHCP oder feste IPv4-Adresse
-- IP-Adresse
-- Subnetzmaske/Prefix
-- Gateway
-- DNS
-- aktuelle Ethernet-IP anzeigen
-
-MQTT-Broker:
-
-- lokaler Broker auf dem Raspberry Pi
-- Standard-Port 1883 für unverschlüsseltes MQTT
-- Brokerstatus anzeigen
-- Bind-Adresse/Interfaces sinnvoll konfigurieren
-- optional Benutzername/Passwort vorbereiten
-- Änderungen sicher anwenden, validieren und bei ungültigen Netzwerkdaten nicht übernehmen
-
-Netzwerkänderungen dürfen die Oberfläche nicht dauerhaft unbedienbar machen. Vor dem Anwenden validieren und einen Recovery-Weg dokumentieren.
-
-## Reiter 4 – WLAN
-
-- verfügbare SSIDs scannen und anzeigen
-- SSID auswählen
-- WLAN-Passwort über Touch-Bildschirmtastatur eingeben
-- Verbinden/Trennen
-- Signalstärke in dBm und grafisch anzeigen
-- zugewiesene IPv4-Adresse anzeigen
-- Verbindungsstatus anzeigen
-- Passwörter nicht im Klartext in Logs oder GUI anzeigen
-
-### Default-WLAN / Hausnetz
-
-Als Voreinstellung soll das bereits bekannte Haus-WLAN verwendet werden.
-
-OpenClaw soll bei der Einrichtung prüfen, ob auf dem System bereits ein funktionierendes NetworkManager-WLAN-Profil bzw. bekannte Zugangsdaten für das Hausnetz vorhanden sind. Wenn ja:
-
-- diese SSID automatisch als Default in der WLAN-Seite vorauswählen;
-- das dazugehörige Passwort sicher aus dem vorhandenen lokalen Verbindungsprofil bzw. Secret-Speicher übernehmen;
-- die Verbindung beim ersten Start automatisch herstellen, sofern technisch möglich;
-- das Passwort nicht in GitHub, Markdown oder Logs kopieren;
-- die WLAN-Seite trotzdem so auslegen, dass SSID und Passwort später über Touch geändert werden können.
-
-Falls beim Provisionieren noch kein bekanntes Hausnetz vorhanden ist, müssen SSID und Passwort einmalig lokal eingegeben bzw. bereitgestellt werden. Danach sollen sie sicher auf dem Zielsystem gespeichert bleiben.
-
-## Reiter 5 – MQTT Explorer
-
-Wenn auf 7 Zoll sinnvoll bedienbar, implementiere eine MQTT-Explorer-ähnliche Ansicht:
-
-- hierarchischer Topic-Baum
-- eingehende Topics automatisch ergänzen
-- letzter Payload pro Topic
-- Zeitstempel/Alter
-- QoS
-- Retain-Flag
-- Roh-Payload
-- JSON formatiert darstellen, wenn Payload valides JSON ist
-- Such-/Filterfunktion
-- Aktualisierungen sichtbar, aber UI nicht durch hohe Nachrichtenrate blockieren
+Die Referenzbilder dürfen bei der Umstellung auf 800×480 **inhaltlich nicht verändert** werden. Menüstruktur wird jedoch an die tatsächlich implementierte Haupt-/Einstellungsnavigation synchronisiert. Funktionale Inhalte einer Seite bleiben erhalten.
 
 ## MQTT-Topics
 
-Die exakten Topic-Namen sind noch nicht bekannt. Baue deshalb zunächst ein konfigurierbares Mapping. In einem zweiten Schritt werden anhand einer MQTT-Explorer-Aufnahme die realen Topics und Payloads eingetragen. Siehe `MQTT.md`.
+Keine realen Topic-Namen erfinden. Zentrales konfigurierbares Mapping verwenden und reale Topics anhand der Anlage eintragen.
 
-## Technischer Vorschlag
+## Zugangsdaten und Wartbarkeit
 
-Bevorzuge eine robuste Raspberry-Pi-native Lösung. Geeignet ist z. B. Python mit PySide6/PyQtGraph oder eine vergleichbar touch-taugliche GUI. Für Netzwerkänderungen sollen vorhandene Linux/Raspberry-Pi-Mechanismen genutzt werden, nicht selbst geschriebene fragile Shell-Hacks. MQTT-Broker vorzugsweise Mosquitto. Für lokale Historie eine ressourcenschonende persistente Speicherung vorsehen, z. B. SQLite mit Retention/Downsampling.
-
-Für WLAN und Ethernet bevorzugt NetworkManager verwenden. Vorhandene NetworkManager-Verbindungsprofile sollen soweit möglich weitergenutzt werden, insbesondere das bekannte Haus-WLAN.
-
-Treffe begründete technische Entscheidungen selbstständig, dokumentiere sie und halte Komponenten austauschbar.
+Benötigte Credentials lokal und geschützt speichern, z. B. NetworkManager-Profile, systemd Credentials oder dedizierte Secret-Datei mit restriktiven Rechten. Nie in Git. OpenClaw muss dokumentieren, wo lokale Credentials für spätere Wartung liegen, ohne deren Werte offenzulegen.
 
 ## Abnahmekriterien
 
-Das Projekt gilt für die erste Stufe als erfolgreich, wenn:
-
-1. die Anwendung auf Raspberry Pi 4 startet und automatisch fullscreen angezeigt wird;
-2. alle fünf Reiter vorhanden und touch-bedienbar sind;
-3. ein lokaler MQTT-Broker läuft;
-4. simulierte MQTT-Testdaten alle Live-Anzeigen und Diagramme speisen können;
-5. Topic-Mappings ohne Quellcodeänderung angepasst werden können;
-6. Ethernet- und WLAN-Status korrekt angezeigt werden;
-7. Netzwerkparameter mit Validierung konfigurierbar sind;
-8. MQTT-Explorer-Ansicht unbekannte Topics dynamisch anzeigen kann;
-9. Neustart, Broker-Ausfall und fehlende MQTT-Daten die GUI nicht zum Absturz bringen;
-10. Installation, Autostart, Backup/Restore und Recovery dokumentiert sind;
-11. beim Öffnen der Bildschirmtastatur das aktive Eingabefeld immer sichtbar bleibt;
-12. vorhandene Haus-WLAN-Zugangsdaten sicher als Default übernommen werden können;
-13. für spätere OpenClaw-Wartung benötigte lokale Credentials sicher erhalten bleiben und nicht in Git gelangen.
+1. Anwendung startet fullscreen auf 800×480.
+2. Hauptnavigation besitzt exakt Übersicht, Verläufe, MQTT Explorer, Einstellungen.
+3. Einstellungen besitzt exakt Netzwerk (LAN), WLAN, System und Zurück.
+4. Lokaler MQTT-Broker läuft.
+5. Simulierte MQTT-Daten speisen Live-Anzeigen und Diagramme.
+6. Netzwerkstatus/-parameter funktionieren mit Validierung.
+7. MQTT Explorer verarbeitet unbekannte Topics dynamisch.
+8. Systemseite zeigt die realen Pi-Daten.
+9. Neustart/Ausschalten verlangen Sicherheitsabfrage.
+10. Bildschirmtastatur verdeckt kein aktives Feld.
+11. GUI bleibt bei Broker-/Datenfehlern bedienbar.
+12. Secrets gelangen nicht in Git.
+13. Jede Haupt-/Unteransicht wird auf realen 800×480 geprüft.
 
 ## Vorgehensweise
 
-Arbeite in nachvollziehbaren Schritten. Lege zuerst Architektur, Verzeichnisstruktur, Konfigurationsformat, Mock-Daten und UI-Grundgerüst an. Implementiere danach MQTT, Live-Ansicht, Historie, Netzwerkseiten und MQTT Explorer. Verwende für Entwicklung ohne reale PFC/DAB einen MQTT-Simulator. Führe am Ende einen lokalen Funktionstest durch und dokumentiere offene Punkte.
-
-Keine realen Topic-Namen erfinden: Platzhalter deutlich kennzeichnen, bis die MQTT-Explorer-Daten vorliegen.
+Arbeite reproduzierbar und in nachvollziehbaren Schritten. Bestehende, bereits funktionierende Seiteninhalte nicht ohne ausdrücklichen Auftrag umgestalten. Änderungen an Navigation, Auflösung und Styling gegen die reale Hardware prüfen und dokumentieren.
