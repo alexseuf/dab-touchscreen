@@ -1,5 +1,5 @@
 from __future__ import annotations
-import ctypes, html, json, os, platform, shutil, socket, subprocess, time
+import configparser, ctypes, html, json, os, platform, shutil, socket, subprocess, time
 from collections import deque
 from PyQt5 import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
@@ -77,7 +77,7 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__();self.model=model;self.config=config;self.history=history;self.mqtt=None;self.threadpool=QtCore.QThreadPool.globalInstance();self._keyboard_process=None;self._wifi_status_running=False
         self.setWindowTitle(config['app'].get('title','DAB Touchscreen'));self.resize(800,480);self.setMinimumSize(800,480);self._main_return_index=0;self._cpu_sample=None
         if os.environ.get('XDG_SESSION_TYPE')=='wayland' or os.environ.get('WAYLAND_DISPLAY'):
-            self.setWindowFlag(QtCore.Qt.FramelessWindowHint,True);QtCore.QTimer.singleShot(0,self.showFullScreen)
+            self.setWindowFlag(QtCore.Qt.FramelessWindowHint,True);self._configure_panel_autohide()
         self.samples={k:deque(maxlen=3600) for k in model.definitions};self.cards={};self.explorer={}
         self.nav_stack=QtWidgets.QStackedWidget();self.setCentralWidget(self.nav_stack)
         self.tabs=QtWidgets.QTabWidget();self.tabs.addTab(self._overview(),'Übersicht');self.tabs.addTab(self._charts(),'Verläufe');self.tabs.addTab(self._mqtt_page(),'MQTT Explorer');self.tabs.addTab(QtWidgets.QWidget(),'⚙ Einstellungen');self.tabs.currentChanged.connect(self._main_tab_changed);self.nav_stack.addWidget(self.tabs)
@@ -88,6 +88,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setStyleSheet('''QWidget{background:#0b141b;color:#ffffff;font-family:"DejaVu Sans";font-size:14px}QTabWidget::pane{border:1px solid #355364}QTabBar::tab{min-width:155px;min-height:44px;background:#10293a;padding:2px;border:0}QTabBar::tab:selected{background:#1687e8}QFrame#card,QFrame#section{background:#101f29;border:1px solid #355364;border-radius:8px}QFrame#card[quality="stale"],QFrame#card[quality="missing"],CompactValue[quality="stale"],CompactValue[quality="missing"]{color:#89939e}QFrame#card[quality="invalid"],CompactValue[quality="invalid"]{color:#ff7b72}QLabel#cardTitle{font-size:12px;color:#9edcff}QLabel#value{font-size:18px;font-weight:bold}QLabel#compactTitle{font-size:12px;color:#9edcff}QLabel#compactValue{font-size:14px;font-weight:bold}QPushButton,QLineEdit,QComboBox{min-height:42px;padding:3px;background:#183040;color:#ffffff;border:1px solid #36596c;border-radius:5px}QPushButton:pressed{background:#1687e8}QPlainTextEdit,QListWidget,QTreeWidget{background:#101f29;border:1px solid #355364;color:#ffffff;font-family:"DejaVu Sans Mono"}QProgressBar{min-height:22px;background:#183040;border:1px solid #36596c}QProgressBar::chunk{background:#34d26b}QStatusBar{background:#0b141b;color:#ffffff;font-size:12px}''')
         self.wifi_timer=QtCore.QTimer(self);self.wifi_timer.timeout.connect(self._refresh_wifi_status);self.wifi_timer.start(5000)
         self.system_timer=QtCore.QTimer(self);self.system_timer.timeout.connect(self._refresh_system);self.system_timer.start(2000)
+
+    def _configure_panel_autohide(self):
+        try:
+            directory=os.path.join(os.path.expanduser('~'),'.config','wf-panel-pi');os.makedirs(directory,exist_ok=True)
+            path=os.path.join(directory,'wf-panel-pi.ini');panel=configparser.ConfigParser();panel.read(path)
+            if not panel.has_section('panel'):panel.add_section('panel')
+            panel.set('panel','autohide','true');panel.set('panel','exclusive','false');panel.set('panel','autohide_duration','150')
+            with open(path,'w',encoding='utf-8') as handle:panel.write(handle)
+        except OSError:pass
 
     def _main_tab_changed(self,index):
         if index==3:
