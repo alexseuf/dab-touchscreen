@@ -46,8 +46,63 @@ def connect_wifi(ssid,password,interface='wlan0'):
 def disconnect_wifi(interface='wlan0'):
     return nmcli('device','disconnect',interface,timeout=30)
 
-def set_ethernet(connection,method,address='',gateway='',dns=''):
-    if method=='manual': ipaddress.ip_interface(address)
-    args=['connection','modify',connection,'ipv4.method',method]
-    if method=='manual': args += ['ipv4.addresses',address,'ipv4.gateway',gateway,'ipv4.dns',dns]
-    return nmcli(*args)
+def _field(output):
+    return next((line.strip() for line in output.splitlines() if line.strip()),'')
+
+def ethernet_status(interface='eth0'):
+    shown=nmcli('-g','GENERAL.STATE,GENERAL.CONNECTION,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS','device','show',interface)
+    rows=[line.strip() for line in shown.stdout.splitlines()]
+    connection=rows[1] if len(rows)>1 else ''
+    if not connection or connection=='--':
+        profiles=nmcli('-g','NAME,TYPE','connection','show')
+        connection=next((line.rsplit(':',1)[0] for line in profiles.stdout.splitlines() if line.rsplit(':',1)[-1] in ('802-3-ethernet','ethernet')),'')
+    configured=nmcli('-g','ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns','connection','show',connection) if connection and connection!='--' else None
+    settings=[line.strip() for line in configured.stdout.splitlines()] if configured else []
+    live_address=next((row for row in rows[2:] if '/' in row),'')
+    address=(settings[1] if len(settings)>1 else '') or live_address
+    ip,prefix=(address.split('/',1)+['24'])[:2] if address else ('','24')
+    gateway=(settings[2] if len(settings)>2 else '') or (rows[3] if len(rows)>3 else '')
+    dns=(settings[3] if len(settings)>3 else '') or ', '.join(row for row in rows[4:] if row)
+    method=settings[0] if settings else 'auto'
+    return {'interface':interface,'state':rows[0] if rows else 'nicht verfügbar','connection':connection,'method':method,'address':ip,'prefix':prefix,'gateway':gateway,'dns':dns,'live_address':live_address}
+
+def broker_status():
+    addresses={}
+    for interface in ('eth0','wlan0'):
+        output=subprocess.run(['ip','-4','-brief','address','show','dev',interface],text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,check=False).stdout.split()
+        addresses[interface]=next((part.split('/')[0] for part in output if '/' in part),'')
+    try:
+        with socket.create_connection(('127.0.0.1',1883),timeout=.5):pass
+        running=True
+    except OSError:running=False
+    host=addresses['eth0'] or addresses['wlan0'] or '127.0.0.1'
+    return {'running':running,'host':host,'port':1883,'preferred':'LAN' if addresses['eth0'] else ('WLAN' if addresses['wlan0'] else 'lokal')}
+
+def set_ethernet(interface,method,address='',prefix='24',gateway='',dns=''):
+    status=ethernet_status(interface);connection=status['connection']
+    if not connection or connection=='--':raise ValueError(f'Keine Ethernet-Verbindung für {interface} gefunden')
+    if method not in ('auto','manual'):raise ValueError('Ungültige IPv4-Methode')
+    args=['connection','modify',connection]
+    if method=='manual':
+        ip=ipaddress.IPv4Address(address.strip());prefix_int=int(prefix)
+        if not 1<=prefix_int<=32:raise ValueError('Prefix muss zwischen 1 und 32 liegen')
+        network=ipaddress.IPv4Network(f'{ip}/{prefix_int}',strict=False)
+        gateway_ip=ipaddress.IPv4Address(gateway.strip())
+        if gateway_ip not in network:raise ValueError('Gateway liegt nicht im angegebenen Netz')
+        dns_values=[value for value in dns.replace(',',' ').split() if value]
+        if not dns_values:raise ValueError('Mindestens ein DNS-Server ist erforderlich')
+        for value in dns_values:ipaddress.IPv4Address(value)
+        args += ['ipv4.method','manual','ipv4.addresses',f'{ip}/{prefix_int}','ipv4.gateway',str(gateway_ip),'ipv4.dns',','.join(dns_values),'ipv4.ignore-auto-dns','yes']
+    else:
+        args += ['ipv4.method','auto','ipv4.addresses','','ipv4.gateway','','ipv4.dns','','ipv4.ignore-auto-dns','no']
+    changed=nmcli(*args)
+    if changed.returncode:return changed
+    activated=nmcli('connection','up',connection,'ifname',interface,timeout=45)
+    if activated.returncode:
+        if status['method']=='manual' and status['address']:
+            restore=['connection','modify',connection,'ipv4.method','manual','ipv4.addresses',f"{status['address']}/{status['prefix']}",'ipv4.gateway',status['gateway'],'ipv4.dns',status['dns'].replace(' ',''),'ipv4.ignore-auto-dns','yes']
+        else:
+            restore=['connection','modify',connection,'ipv4.method','auto','ipv4.addresses','','ipv4.gateway','','ipv4.dns','','ipv4.ignore-auto-dns','no']
+        nmcli(*restore);nmcli('connection','up',connection,'ifname',interface,timeout=45)
+        activated.stderr=(activated.stderr or '')+'\nVorherige Ethernet-Konfiguration wurde wiederhergestellt.'
+    return activated

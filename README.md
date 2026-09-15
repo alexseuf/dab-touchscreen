@@ -64,6 +64,13 @@ Zeitreihen aller Messwerte, sinnvoll gruppiert auf mehrere Y-Achsen, Touch-Zoom/
 
 Ethernet-Konfiguration einschließlich DHCP/fester IPv4-Adresse sowie Konfiguration und Status des lokalen MQTT-Brokers.
 
+Die Einstellungsseite liest das vorhandene NetworkManager-Profil aus und erlaubt die
+Umschaltung zwischen DHCP und einer festen IPv4-Adresse mit Prefix, Gateway und
+einem oder mehreren DNS-Servern. Eingaben werden vor dem Anwenden validiert. Kann
+NetworkManager die neue Konfiguration nicht aktivieren, wird das vorherige Profil
+automatisch wiederhergestellt. Für die angezeigte MQTT-Adresse wird LAN bevorzugt;
+bei getrenntem Ethernet wird die WLAN-Adresse als Recovery-Zugang angezeigt.
+
 ![LAN und MQTT](docs/images/03_lan.svg)
 
 ### 4. WLAN
