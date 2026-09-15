@@ -2,36 +2,66 @@
 
 ## Verbindliche Zielauflösung
 
-Die reale Zielhardware ist das offizielle 7-Zoll-Raspberry-Pi-Touchdisplay der ersten Generation mit **800×480 Pixeln im Querformat**. Alle Referenzbilder, Layouts und Abnahmetests müssen deshalb primär für **800×480** entworfen werden. 1024×600 darf nicht mehr als Designgrundlage verwendet werden.
+Die reale Zielhardware ist das offizielle 7-Zoll-Raspberry-Pi-Touchdisplay der ersten Generation mit **800×480 Pixeln im Querformat**. Alle Referenzbilder, Layouts und Abnahmetests werden primär für 800×480 ausgelegt. 1024×600 darf nicht mehr als Designgrundlage verwendet werden.
 
-Dark-Theme, hohe Kontraste, große Touch-Flächen. Keine Referenzgrafik darf mehr Informationen zeigen, als bei 800×480 sinnvoll lesbar und bedienbar umgesetzt werden können. Mindest-Touchziel ca. 48×48 px, normale UI-Schrift bevorzugt 16–20 px, wichtige Werte größer. Lange Beschriftungen kürzen statt Schrift unlesbar klein zu skalieren.
+## Verbindliche Navigation
 
-Oben permanent eine kompakte Tab-Leiste:
+Hauptnavigation:
 
-`Übersicht | Verläufe | LAN/MQTT | WLAN | MQTT`
+`Übersicht | Verläufe | MQTT Explorer | ⚙ Einstellungen`
 
-Status kompakt im Header oder Footer: Brokerstatus, Ethernet/WLAN, Datenalter, Uhrzeit. Vertikalen Platz sparsam verwenden.
+Beim Öffnen von **⚙ Einstellungen** ersetzt folgende zweite Ebene die Hauptnavigation vollständig:
+
+`Netzwerk (LAN) | WLAN | System | ← Zurück`
+
+Beide Ebenen werden niemals gleichzeitig angezeigt. **← Zurück** kehrt zur Hauptnavigation zurück.
+
+## Inhaltstreue der Referenzbilder
+
+Die vorhandenen Seiteninhalte dürfen beim Umstellen der Referenzgrafiken auf 800×480 **nicht inhaltlich verändert werden**. Werte, Funktionen, Felder und Informationsumfang bleiben erhalten. Zulässig sind Skalierung, Positionierung, Abstände, Schriftgrößen und andere rein visuelle Anpassungen, die erforderlich sind, um denselben Inhalt auf 800×480 darzustellen. Die Navigation selbst wird an die tatsächlich implementierte Haupt-/Einstellungsstruktur angepasst.
+
+## Framework und Styling
+
+Ziel-Framework ist **PySide6 oder PyQt6 (Qt)**, Diagramme vorzugsweise **PyQtGraph**. Die SVG-Dateien unter `docs/images/` sind direkt gestaltete Design-Mock-ups; sie stammen nicht aus einem anderen GUI-Framework. Deshalb können Kanten, Abstände und Typografie in den SVGs zunächst eleganter wirken als in der laufenden Qt-Anwendung.
+
+Die bisherigen SVG-Mock-ups verwenden überwiegend `Arial` bzw. `Arial, sans-serif`, für technische Baum-/Rohdaten teilweise `monospace`. Arial ist auf Raspberry Pi OS nicht zuverlässig als identische Systemschrift vorhanden. Für die reale Qt-Oberfläche ist deshalb **DejaVu Sans** als reproduzierbarer primärer Font vorgesehen, mit `sans-serif` als Fallback. Technische Rohdaten können **DejaVu Sans Mono** verwenden. Wird auf dem Zielsystem nachweislich ein anderer bereits installierter Font verwendet, muss er dokumentiert und Mock-up/Qt gemeinsam darauf umgestellt werden; keine stillen Font-Unterschiede.
+
+QSS soll die reale GUI an die SVG-Referenzen angleichen: Dark-Theme, klare blaue Navigation, dezente Rahmen, konsistente Innenabstände und ausgewogene Typografie. Keine rein dekorative Änderung darf Funktion oder Seiteninhalt verändern.
+
+## Größen für 800×480
+
+Touch-Ziele bevorzugt mindestens 44–48 px hoch/breit. Normale UI-Schrift etwa 16–20 px, Überschriften/Werte entsprechend größer. Diese Werte sind Richtwerte; entscheidend ist der Test auf dem realen Display. Lange Beschriftungen nicht durch extrem kleine Schrift erzwingen.
 
 ## 1. Übersicht
 
-Energiefluss Netz → PFC → Zwischenkreis → DAB → DC-Ausgang. Nur die wichtigsten Live-Werte gleichzeitig zeigen. Temperaturen kompakt in einer unteren Zeile bzw. Karten. Detailwerte über Touch aufrufen statt die Hauptseite zu überladen.
+Energiefluss Netz → PFC → Zwischenkreis → DAB → DC-Ausgang mit den vorhandenen Live-Werten und Temperaturen. Inhalt nicht reduzieren; Layout auf 800×480 anpassen.
 
 ## 2. Verläufe
 
-Plotfläche maximal groß. Zeitbereich über große Touch-Schaltflächen; Kurvenauswahl ggf. über Dialog. Zoom/Pan per Touch. Achsenbeschriftungen auf 800×480 reduzieren. Legende kompakt.
+Vorhandene Plot-Inhalte, Zeitbereiche, Kurven und Funktionen beibehalten. Plotfläche bei 800×480 maximal nutzen. Zoom/Pan per Touch.
 
-## 3. LAN / MQTT
+## 3. MQTT Explorer
 
-Bei 800×480 keine überladene Desktop-Zweispaltenansicht. Ethernet und Broker in zwei klaren Bereichen mit nur den unmittelbar relevanten Feldern. Erweiterte Einstellungen können über Unterdialoge geöffnet werden. Bildschirmtastatur muss das aktive Eingabefeld sichtbar lassen; Inhalt bei Bedarf nach oben verschieben/scrollen.
+Vorhandenen Topic-Baum, Filter und Detailinhalt beibehalten. Split-View für 800×480 optimieren, ohne Informationen aus dem Referenzbild zu entfernen.
 
-## 4. WLAN
+## 4. Einstellungen
 
-Zweispaltig: links SSID-Liste, rechts Verbindung/Status. Zeilen und Buttons touch-tauglich. Passwortfeld verdeckt, optional sichtbar. Bei Bildschirmtastatur muss das aktive Feld oberhalb der Tastatur sichtbar bleiben.
+### 4.1 Netzwerk (LAN)
 
-## 5. MQTT Explorer
+Vorhandene Ethernet-/Brokerinformationen und Eingabefelder beibehalten. Bildschirmtastatur darf aktives Feld nicht verdecken.
 
-Bei 800×480 Split-View ungefähr 38/62 %. Links Topic-Baum, rechts selektiertes Topic/Payload. Detailinformationen priorisieren; QoS/Retain/Zeit kompakt. Roh-/JSON-Ansicht darf scrollen. Suchfeld ggf. als aufklappbare Funktion, damit nicht dauerhaft wertvolle Höhe verloren geht.
+### 4.2 WLAN
+
+Vorhandene SSID-, Verbindungs-, Passwort-, Signal- und IP-Inhalte beibehalten. Bildschirmtastatur verschiebt/scrollt das aktive Feld sichtbar.
+
+### 4.3 System
+
+CPU-Auslastung, Arbeitsspeicher, CPU-Temperatur, Datenträgerbelegung, Hostname, Betriebssystem/Laufzeit und Netzwerkadressen darstellen. Neustart und Ausschalten als große Touch-Schaltflächen; beide Aktionen mit Sicherheitsabfrage.
+
+### 4.4 Zurück
+
+Stellt die Hauptnavigation wieder her.
 
 ## Responsivität und Abnahme
 
-800×480 ist die verbindliche Referenz. Höhere Auflösungen dürfen zusätzlichen Raum nutzen, aber keine Funktion darf 1024×600 voraussetzen. Jede Hauptansicht muss mit einem echten 800×480-Screenshot bzw. einem exakt 800×480 großen Referenz-SVG geprüft werden. Kein horizontaler Scrollbalken in Hauptansichten; wesentliche Bedienelemente müssen ohne Scrollen erreichbar sein. Touch-Tastatur darf das bearbeitete Feld nicht verdecken.
+Jede Haupt- und Einstellungsansicht muss auf einem echten 800×480-Framebuffer bzw. mit einem exakt 800×480 großen Referenz-SVG geprüft werden. Kein horizontaler Scrollbalken in Hauptansichten. Wesentliche Bedienelemente müssen touch-tauglich sein. Die Bildschirmtastatur darf das aktive Feld nicht verdecken. Höhere Auflösungen dürfen zusätzlichen Raum nutzen, aber keine Funktion darf mehr als 800×480 voraussetzen.
