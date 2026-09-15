@@ -46,7 +46,14 @@ Netzwerk- und Credential-Änderungen sind in frühen Stufen absichtlich gesperrt
 
 Die detaillierte Architektur, der vorgeschlagene Software-Stack, die Modultrennung und die Ziel-Verzeichnisstruktur stehen in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-## Hauptansichten
+## Hauptansichten und Einstellungen
+
+Die permanente Hauptleiste enthält nur die vier Einträge
+`Übersicht | Verläufe | MQTT Explorer | ⚙ Einstellungen`.
+LAN, WLAN und Systemfunktionen liegen in einer zweiten Navigationsebene, damit
+die Hauptansichten auf dem 7-Zoll-Display genügend Platz behalten. Nach dem
+Öffnen von **⚙ Einstellungen** ersetzt folgende Leiste die Hauptnavigation:
+`Netzwerk (LAN) | WLAN | System | ← Zurück`.
 
 ### 1. Übersicht / Live-Daten
 
@@ -60,23 +67,34 @@ Zeitreihen aller Messwerte, sinnvoll gruppiert auf mehrere Y-Achsen, Touch-Zoom/
 
 ![Verläufe](docs/images/02_charts.svg)
 
-### 3. LAN / MQTT
+### 3. MQTT Explorer
+
+Topic-Baum und eingehende MQTT-Nachrichten möglichst ähnlich zu MQTT Explorer, inklusive Topic, Payload, Zeitstempel, QoS und Retain-Status.
+
+![MQTT Explorer](docs/images/05_mqtt.svg)
+
+### 4. ⚙ Einstellungen
+
+Der Einstellungsbereich besitzt die Unterseiten **Netzwerk (LAN)**, **WLAN**
+und **System**. **← Zurück** wechselt wieder zur Hauptnavigation.
+
+#### Netzwerk (LAN)
 
 Ethernet-Konfiguration einschließlich DHCP/fester IPv4-Adresse sowie Konfiguration und Status des lokalen MQTT-Brokers.
 
 ![LAN und MQTT](docs/images/03_lan.svg)
 
-### 4. WLAN
+#### WLAN
 
 Scan verfügbarer SSIDs, Auswahl per Liste, Passworteingabe über Bildschirmtastatur, Signalstärke und aktuelle WLAN-IP.
 
 ![WLAN](docs/images/04_wlan.svg)
 
-### 5. MQTT Explorer
+#### System
 
-Topic-Baum und eingehende MQTT-Nachrichten möglichst ähnlich zu MQTT Explorer, inklusive Topic, Payload, Zeitstempel, QoS und Retain-Status.
-
-![MQTT Explorer](docs/images/05_mqtt.svg)
+Aktuelle Raspberry-Pi-Systemdaten: CPU-Auslastung, Arbeitsspeicher,
+CPU-Temperatur, Datenträgerbelegung, Laufzeit und IP-Adressen. Die Aktionen
+**Neustart** und **Ausschalten** benötigen jeweils eine Sicherheitsabfrage.
 
 ## Dokumente
 
@@ -90,7 +108,7 @@ Topic-Baum und eingehende MQTT-Nachrichten möglichst ähnlich zu MQTT Explorer,
 - `config/commissioning.yaml` – Freigabe der Funktionen je Inbetriebnahmestand
 - `scripts/commissioning_check.py` – Diagnose- und Abnahmetest für die aktive Stufe
 - `src/main.py` – stufenfähiger Anwendungseinstieg
-- `docs/images/*.svg` – visuelle Referenz für alle fünf Display-Reiter und die Systemarchitektur
+- `docs/images/*.svg` – visuelle Referenzen der Ansichten und der Systemarchitektur
 
 ## Wichtige Architekturvorgaben
 

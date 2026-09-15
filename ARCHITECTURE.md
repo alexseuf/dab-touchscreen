@@ -43,11 +43,15 @@ Leistungsteil / Messsystem
 |              v              |
 |  +-----------------------+  |
 |  | Touch GUI             |  |
+|  | Hauptnavigation       |  |
 |  | 1 Übersicht           |  |
 |  | 2 Verläufe            |  |
-|  | 3 LAN / MQTT          |  |
-|  | 4 WLAN                |  |
-|  | 5 MQTT Explorer       |  |
+|  | 3 MQTT Explorer       |  |
+|  | 4 Einstellungen       |  |
+|  |   - Netzwerk (LAN)    |  |
+|  |   - WLAN              |  |
+|  |   - System            |  |
+|  |   - Zurück            |  |
 |  +-----------------------+  |
 |                             |
 |  NetworkManager   SQLite    |

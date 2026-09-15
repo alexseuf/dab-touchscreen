@@ -2,9 +2,17 @@
 
 ## Allgemein
 
-Zielauflösung vorläufig 1024×600 im Querformat. Dark-Theme, hohe Kontraste, große Touch-Flächen. Oben permanent eine Tab-Leiste:
+Zielauflösung vorläufig 1024×600 im Querformat. Dark-Theme, hohe Kontraste, große Touch-Flächen. Die Hauptnavigation lautet:
 
-`Übersicht | Verläufe | Netzwerk (LAN) | WLAN | MQTT Explorer`
+`Übersicht | Verläufe | MQTT Explorer | ⚙ Einstellungen`
+
+Beim Öffnen von **⚙ Einstellungen** wird die Hauptnavigation vollständig durch
+die zweite Navigationsebene ersetzt:
+
+`Netzwerk (LAN) | WLAN | System | ← Zurück`
+
+Es werden niemals beide Navigationsebenen gleichzeitig angezeigt. **← Zurück**
+kehrt zur zuletzt verwendeten Hauptansicht zurück.
 
 Statusleiste unten oder kompakt im Header: Brokerstatus, Ethernet/WLAN, Datenalter, Uhrzeit.
 
@@ -34,7 +42,18 @@ Unterer Bereich: Temperaturkarten für PFC, Drossel, DAB primär, DAB sekundär 
 - Buttons `1 min`, `10 min`, `1 h`, `6 h`, `24 h`, `Reset`
 - Tooltip/Cursor für Werte an einem Zeitpunkt, sofern touch-tauglich
 
-## 3. LAN / MQTT
+## 3. MQTT Explorer
+
+Für 1024×600 bevorzugt Split-View:
+
+- links ca. 40 %: scrollbarer Topic-Baum
+- rechts ca. 60 %: Details des selektierten Topics
+
+Detailbereich: Topic, letzter Payload, Zeitstempel/Alter, QoS, Retain, Rohansicht und formatierte JSON-Ansicht. Oben Suchfeld. Bei sehr vielen Updates Detailansicht begrenzen/drosseln.
+
+## 4. Einstellungen
+
+### 4.1 Netzwerk (LAN)
 
 Linke Hälfte: Ethernet. Rechte Hälfte: Broker.
 
@@ -42,7 +61,7 @@ Ethernet: DHCP/Fest, IP, Prefix/Netzmaske, Gateway, DNS, aktuelle Adresse, Links
 
 Broker: läuft/gestoppt, Port, Authentifizierung, Anzahl verbundener Clients sofern leicht verfügbar. Einstellungen mit `Übernehmen` und klarer Fehlerausgabe.
 
-## 4. WLAN
+### 4.2 WLAN
 
 Dreispaltig oder zweispaltig:
 
@@ -52,14 +71,18 @@ Dreispaltig oder zweispaltig:
 
 Passwortfeld standardmäßig verdeckt, optional kurz sichtbar schaltbar.
 
-## 5. MQTT Explorer
+### 4.3 System
 
-Für 1024×600 bevorzugt Split-View:
+- Livewerte: CPU-Auslastung, RAM-Belegung, CPU-Temperatur, Datenträgerbelegung und Laufzeit
+- Hostname, Betriebssystem und aktive IP-Adressen
+- Werte automatisch aktualisieren, ohne die GUI zu blockieren
+- Touch-Schaltflächen `Neustart` und `Ausschalten`
+- vor jeder Systemaktion eine eindeutige Sicherheitsabfrage; Standardauswahl ist Abbrechen
+- nach Bestätigung verständlichen Status anzeigen und Mehrfachauslösung verhindern
 
-- links ca. 40 %: scrollbarer Topic-Baum
-- rechts ca. 60 %: Details des selektierten Topics
+### 4.4 Zurück
 
-Detailbereich: Topic, letzter Payload, Zeitstempel/Alter, QoS, Retain, Rohansicht und formatierte JSON-Ansicht. Oben Suchfeld. Bei sehr vielen Updates Detailansicht begrenzen/drosseln.
+Schließt den Einstellungsbereich und stellt die Hauptnavigation wieder her.
 
 ## Responsivität
 

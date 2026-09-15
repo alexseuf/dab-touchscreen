@@ -95,7 +95,20 @@ Stelle die Messwerte als Liniendiagramme dar. Anforderungen:
 - keine unlesbare Überlagerung sehr unterschiedlicher Größen
 - Historie auch nach GUI-Neustart verfügbar, sofern lokales Logging aktiviert ist
 
-## Reiter 3 – Ethernet und MQTT
+## Hauptnavigation und Einstellungs-Untermenü
+
+Die Hauptnavigation enthält ausschließlich:
+
+`Übersicht | Verläufe | MQTT Explorer | ⚙ Einstellungen`
+
+Beim Öffnen von **⚙ Einstellungen** wird sie durch folgende zweite Ebene ersetzt:
+
+`Netzwerk (LAN) | WLAN | System | ← Zurück`
+
+**← Zurück** stellt die Hauptnavigation wieder her. Beide Ebenen dürfen auf dem
+kleinen Display nicht gleichzeitig Platz beanspruchen.
+
+## Einstellungen – Netzwerk (LAN) und MQTT
 
 Ethernet-Konfiguration über Touch:
 
@@ -117,7 +130,7 @@ MQTT-Broker:
 
 Netzwerkänderungen dürfen die Oberfläche nicht dauerhaft unbedienbar machen. Vor dem Anwenden validieren und einen Recovery-Weg dokumentieren.
 
-## Reiter 4 – WLAN
+## Einstellungen – WLAN
 
 - verfügbare SSIDs scannen und anzeigen
 - SSID auswählen
@@ -142,7 +155,15 @@ OpenClaw soll bei der Einrichtung prüfen, ob auf dem System bereits ein funktio
 
 Falls beim Provisionieren noch kein bekanntes Hausnetz vorhanden ist, müssen SSID und Passwort einmalig lokal eingegeben bzw. bereitgestellt werden. Danach sollen sie sicher auf dem Zielsystem gespeichert bleiben.
 
-## Reiter 5 – MQTT Explorer
+## Einstellungen – System
+
+- CPU-Auslastung, Arbeitsspeicher, CPU-Temperatur und Datenträgerbelegung live anzeigen
+- Laufzeit, Hostname, Betriebssystem und aktive IP-Adressen anzeigen
+- Systemdaten asynchron aktualisieren; die Touch-Oberfläche darf nicht blockieren
+- je eine Touch-Schaltfläche für Neustart und Ausschalten bereitstellen
+- beide Aktionen nur nach eindeutiger Sicherheitsabfrage ausführen
+
+## Hauptreiter – MQTT Explorer
 
 Wenn auf 7 Zoll sinnvoll bedienbar, implementiere eine MQTT-Explorer-ähnliche Ansicht:
 
