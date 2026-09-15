@@ -2,7 +2,7 @@
 
 ## Ziel
 
-Die Anwendung läuft auf einem Raspberry Pi 4 mit Raspberry Pi OS Bookworm und einem 7-Zoll-Touchdisplay. Sie soll beim Booten automatisch starten, Betriebsdaten über MQTT empfangen, diese darstellen und gleichzeitig einen lokalen MQTT-Broker bereitstellen.
+Die Anwendung läuft auf einem Raspberry Pi 4 mit Raspberry Pi OS Bookworm und dem offiziellen 7-Zoll-Touchdisplay mit 800×480 Pixeln. Sie soll beim Booten automatisch starten, Betriebsdaten über MQTT empfangen, diese darstellen und gleichzeitig einen lokalen MQTT-Broker bereitstellen.
 
 ## Empfohlener Software-Stack
 
@@ -43,168 +43,70 @@ Leistungsteil / Messsystem
 |              v              |
 |  +-----------------------+  |
 |  | Touch GUI             |  |
+|  | Hauptnavigation       |  |
 |  | 1 Übersicht           |  |
 |  | 2 Verläufe            |  |
-|  | 3 LAN / MQTT          |  |
-|  | 4 WLAN                |  |
-|  | 5 MQTT Explorer       |  |
+|  | 3 MQTT Explorer       |  |
+|  | 4 Einstellungen       |  |
+|  |   - Netzwerk (LAN)    |  |
+|  |   - WLAN              |  |
+|  |   - System            |  |
+|  |   - Zurück            |  |
 |  +-----------------------+  |
 |                             |
 |  NetworkManager   SQLite    |
 +-----------------------------+
-        |
-        +-- Ethernet
-        +-- WLAN
-        +-- USB SSD 100 GB
 ```
+
+Die Hauptnavigation enthält ausschließlich `Übersicht | Verläufe | MQTT Explorer | ⚙ Einstellungen`. Beim Öffnen von Einstellungen wird diese Leiste vollständig durch `Netzwerk (LAN) | WLAN | System | ← Zurück` ersetzt. Beide Ebenen werden niemals gleichzeitig angezeigt.
 
 ## Datenfluss
 
 1. Externe Geräte publizieren Messwerte an den lokalen Broker.
-2. Der MQTT-Client der Anwendung subscribed auf die konfigurierten Topics.
+2. Der MQTT-Client subscribed auf die konfigurierten Topics.
 3. Eine zentrale Datenmodell-Schicht normalisiert Werte, Einheiten, Zeitstempel und Qualitätsstatus.
-4. Die GUI liest ausschließlich aus diesem Datenmodell und greift nicht direkt auf MQTT zu.
-5. Zeitreihen werden in einem Ringpuffer gehalten; optional werden sie zusätzlich auf SSD persistiert.
+4. Die GUI liest ausschließlich aus diesem Datenmodell.
+5. Zeitreihen werden in einem Ringpuffer gehalten und optional auf SSD persistiert.
 6. Der MQTT-Explorer kann unabhängig vom festen Mapping alle eingehenden Topics anzeigen.
 
-## Verzeichnisstruktur
+## GUI und Bedienung
 
-```text
-dab-touchscreen/
-├── README.md
-├── PROJECT_PROMPT.md
-├── REQUIREMENTS.md
-├── UI_SPEC.md
-├── ARCHITECTURE.md
-├── MQTT.md
-├── OPEN_QUESTIONS.md
-├── docs/
-│   └── images/
-│       ├── 01_overview.svg
-│       ├── 02_charts.svg
-│       ├── 03_lan.svg
-│       ├── 04_wlan.svg
-│       ├── 05_mqtt.svg
-│       └── architecture.svg
-├── src/
-│   ├── main.py
-│   ├── app.py
-│   ├── config/
-│   │   ├── settings.py
-│   │   └── topic_mapping.py
-│   ├── mqtt/
-│   │   ├── client.py
-│   │   ├── broker_status.py
-│   │   └── explorer_model.py
-│   ├── data/
-│   │   ├── model.py
-│   │   ├── quality.py
-│   │   └── history.py
-│   ├── network/
-│   │   ├── ethernet.py
-│   │   └── wifi.py
-│   ├── ui/
-│   │   ├── main_window.py
-│   │   ├── overview_page.py
-│   │   ├── charts_page.py
-│   │   ├── lan_page.py
-│   │   ├── wifi_page.py
-│   │   └── mqtt_page.py
-│   └── utils/
-├── config/
-│   ├── app.yaml
-│   └── topics.yaml
-├── systemd/
-│   └── dab-touchscreen.service
-├── scripts/
-│   ├── install.sh
-│   ├── update.sh
-│   └── mqtt_simulator.py
-└── tests/
-```
+Die GUI darf nicht blockieren. MQTT, WLAN-Scan, Netzwerkkonfiguration und Datenbankzugriffe müssen asynchron oder in Worker-Threads erfolgen. Die reale Referenzauflösung ist 800×480. Touch-Ziele sollen ungefähr 44–48 px oder größer sein. Höhere Auflösungen dürfen zusätzlichen Platz nutzen, aber keine Funktion darf mehr als 800×480 voraussetzen.
 
-## Zuständigkeiten
+Die Implementierung soll mit PySide6/PyQt6 und QSS so gestaltet werden, dass sie den SVG-Referenzentwürfen möglichst nahekommt. Die SVGs sind Design-Mock-ups und keine Screenshots eines separaten Frameworks. Schriftart, Abstände, Rundungen, Kontraste und Widget-Höhen werden in UI_SPEC.md verbindlich dokumentiert.
 
-### MQTT Client
-- automatischer Reconnect
-- Last-Will/Status optional
-- Subscription zentral verwalten
-- QoS 0/1 unterstützen
-- retained Messages korrekt verarbeiten
-- Empfangszeitpunkt lokal erfassen
+## Einstellungen – System
 
-### Data Model
-Jeder Messwert sollte mindestens besitzen:
-- logischer Name
-- aktueller Wert
-- Einheit
-- letzter Zeitstempel
-- MQTT-Topic
-- Qualitätsstatus: `valid`, `stale`, `missing`, `invalid`
-
-Ein Wert gilt nach konfigurierbarer Zeit ohne Update als `stale` und darf in der GUI nicht wie ein aktueller Messwert aussehen.
-
-### GUI
-Die GUI darf nicht blockieren. MQTT, WLAN-Scan, Netzwerkkonfiguration und Datenbankzugriffe müssen asynchron oder in Worker-Threads erfolgen. Touch-Ziele sollten mindestens ungefähr 44×44 px groß sein.
+Die System-Unterseite zeigt CPU-Auslastung, Arbeitsspeicher, CPU-Temperatur, Datenträgerbelegung, Laufzeit, Hostname, Betriebssystem und aktive IP-Adressen. Neustart und Ausschalten sind als große Touch-Aktionen vorhanden und benötigen jeweils eine eindeutige Sicherheitsabfrage.
 
 ## Netzwerk
 
-NetworkManager ist die bevorzugte Schnittstelle. Die Anwendung soll keine Dateien unter `/etc/network/interfaces` direkt manipulieren.
-
-Für Ethernet:
-- DHCP
-- feste IPv4-Adresse
-- Netzmaske bzw. Prefix
-- Gateway
-- DNS
-- Validierung vor Übernahme
-- Rückfallmöglichkeit bei ungültiger Konfiguration
-
-Für WLAN:
-- Scan
-- SSID-Auswahl
-- WPA2/WPA3-Passwort
-- Bildschirmtastatur
-- Verbindungsstatus
-- Signalstärke in dBm und Balken
-- aktuelle IPv4-Adresse
+NetworkManager ist die bevorzugte Schnittstelle. Die Anwendung soll keine Dateien unter `/etc/network/interfaces` direkt manipulieren. Ethernet unterstützt DHCP/feste IPv4, Prefix, Gateway, DNS, Validierung und Recovery. WLAN unterstützt Scan, SSID-Auswahl, WPA2/WPA3, Bildschirmtastatur, Status, Signalstärke und IPv4-Adresse.
 
 ## MQTT Broker
 
-Mosquitto soll als systemd-Dienst laufen. Für den ersten lokalen Aufbau:
-- TCP Port 1883
-- unverschlüsselt
-- optional Benutzername/Passwort
-- Zugriff standardmäßig nur aus vertrauenswürdigem LAN/WLAN
-
-Die Anwendung soll Broker-Status, Host, Port und Verbindung anzeigen.
+Mosquitto läuft als systemd-Dienst. Für den ersten lokalen Aufbau: TCP 1883, unverschlüsselt, optional Benutzername/Passwort, Zugriff nur aus vertrauenswürdigem LAN/WLAN. Die GUI zeigt Broker-Status, Host, Port und Verbindung.
 
 ## Historisierung
 
-Für die erste Version genügt ein RAM-Ringpuffer. Optional:
-- SQLite auf SSD
-- konfigurierbare Aufbewahrungsdauer
-- Downsampling für lange Zeiträume
-- Begrenzung von Schreibfrequenz und Datenbankgröße
+Für die erste Version genügt ein RAM-Ringpuffer. Optional SQLite auf SSD mit konfigurierbarer Aufbewahrung, Downsampling und begrenzter Schreibfrequenz/Datenbankgröße.
 
 ## Autostart und Recovery
 
-Die Anwendung wird als systemd-Service gestartet:
-- Start nach Netzwerk und grafischer Sitzung
-- automatischer Neustart bei Fehler
-- Logging über journald
-- keine Endlosschleife bei fehlerhafter Konfiguration
+Die Anwendung wird als systemd-Service gestartet: nach Netzwerk und grafischer Sitzung, automatischer Neustart bei Fehler, Logging über journald, keine Endlosschleife bei fehlerhafter Konfiguration.
 
 ## Testbarkeit
 
-`scripts/mqtt_simulator.py` soll synthetische Werte erzeugen, damit die vollständige GUI ohne angeschlossenen Leistungsteil entwickelt werden kann. Der Simulator soll mindestens Spannungen, Ströme, Leistungen, Temperaturen, Zwischenkreisspannung und DAB-Ausgangswerte publizieren.
+`scripts/mqtt_simulator.py` erzeugt synthetische Werte für die vollständige GUI ohne angeschlossenen Leistungsteil.
 
 ## Architekturentscheidungen
 
 1. MQTT-Topic-Namen niemals direkt in Widgets verteilen; zentrales Mapping verwenden.
 2. Netzwerkänderungen über eine dedizierte Service-Schicht kapseln.
 3. UI und Datenmodell trennen.
-4. MQTT Explorer darf unbekannte Topics anzeigen, ohne dass sie im Mapping stehen.
-5. Die Anwendung muss auch bei Broker-Ausfall bedienbar bleiben.
-6. Fehlende Daten klar kennzeichnen statt alte Werte unbemerkt weiter anzuzeigen.
-7. Die exakten realen Topics werden erst im zweiten Projektabschnitt eingetragen.
+4. MQTT Explorer darf unbekannte Topics anzeigen.
+5. Anwendung muss auch bei Broker-Ausfall bedienbar bleiben.
+6. Fehlende Daten klar kennzeichnen.
+7. Exakte reale Topics werden erst anhand der realen Anlage eingetragen.
+8. Die reale Displayreferenz ist 800×480.
+9. Einstellungen sind eine zweite Navigationsebene und keine separaten Hauptreiter.
