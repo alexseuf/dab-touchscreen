@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+for file in /etc/lightdm/lightdm.conf /etc/lightdm/lightdm.conf.d/50-dab-touchscreen.conf; do
+    [ -f "$file" ] || continue
+    sed -i \
+        -e 's/^user-session=.*/user-session=dab-touchscreen/' \
+        -e 's/^autologin-session=.*/autologin-session=dab-touchscreen/' \
+        "$file"
+done
+systemctl restart lightdm.service
+echo DAB_X11_ROLLBACK_PASS

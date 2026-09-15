@@ -1,5 +1,5 @@
 from __future__ import annotations
-import math, random, sys, time
+import math, os, random, sys, time
 from pathlib import Path
 import yaml
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -27,6 +27,9 @@ def run(fullscreen=None):
     app.setFont(QtGui.QFont('DejaVu Sans',14));window=MainWindow(model,cfg,history)
     mqtt=MqttService(cfg['mqtt']['host'],cfg['mqtt']['port'],model,window.explorer_event.emit);window.set_mqtt(mqtt);mqtt.start()
     demo=DemoPublisher(model) if cfg['app'].get('demo_data',True) else None
-    if fullscreen if fullscreen is not None else cfg['app'].get('fullscreen',True):window.showFullScreen()
+    use_fullscreen=fullscreen if fullscreen is not None else cfg['app'].get('fullscreen',True)
+    if os.environ.get('XDG_SESSION_TYPE')=='wayland' or os.environ.get('WAYLAND_DISPLAY'):
+        window.showMaximized()
+    elif use_fullscreen:window.showFullScreen()
     else:window.show()
     rc=app.exec_();mqtt.stop();return rc

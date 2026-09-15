@@ -201,11 +201,11 @@ class MainWindow(QtWidgets.QMainWindow):
         password_row=QtWidgets.QWidget();password_layout=QtWidgets.QHBoxLayout(password_row);password_layout.setContentsMargins(0,0,0,0);password_layout.setSpacing(4);password_layout.addWidget(self.wifi_password)
         self.wifi_reveal=QtWidgets.QPushButton();self.wifi_reveal.setIcon(eye_icon());self.wifi_reveal.setIconSize(QtCore.QSize(32,24));self.wifi_reveal.setCheckable(True);self.wifi_reveal.setFixedWidth(54);self.wifi_reveal.setToolTip('Passwort anzeigen/verbergen');self.wifi_reveal.toggled.connect(self._toggle_password_visibility);password_layout.addWidget(self.wifi_reveal)
         self.wifi_result=QtWidgets.QLabel('WLAN-Status wird geladen …');self.wifi_result.setWordWrap(True);self.wifi_signal=QtWidgets.QProgressBar();self.wifi_signal.setRange(0,100);self.wifi_signal.setTextVisible(False)
-        self.wifi_scan_button=QtWidgets.QPushButton('↻ WLAN scannen');self.wifi_scan_button.clicked.connect(self._scan_wifi);keyboard=QtWidgets.QPushButton('⌨ Tastatur');keyboard.clicked.connect(self._show_touch_keyboard)
+        self.wifi_scan_button=QtWidgets.QPushButton('↻ WLAN scannen');self.wifi_scan_button.clicked.connect(self._scan_wifi);self.keyboard_button=QtWidgets.QPushButton('⌨ Tastatur');self.keyboard_button.clicked.connect(self._show_touch_keyboard)
         connect=QtWidgets.QPushButton('Verbinden');connect.clicked.connect(self._connect_wifi);disconnect=QtWidgets.QPushButton('Trennen');disconnect.clicked.connect(self._disconnect_wifi)
         lay.setContentsMargins(6,4,6,4);lay.setVerticalSpacing(3)
         lay.addWidget(QtWidgets.QLabel('Verfügbare WLAN-Netze'),0,0);lay.addWidget(self.wifi_list,1,0,6,1);lay.addWidget(self.wifi_scan_button,7,0,2,1)
-        lay.addWidget(QtWidgets.QLabel('SSID'),0,1);lay.addWidget(self.wifi_ssid,1,1);lay.addWidget(QtWidgets.QLabel('Passwort'),2,1);lay.addWidget(password_row,3,1);lay.addWidget(keyboard,4,1);lay.addWidget(connect,5,1);lay.addWidget(disconnect,6,1);lay.addWidget(self.wifi_result,7,1);lay.addWidget(self.wifi_signal,8,1)
+        lay.addWidget(QtWidgets.QLabel('SSID'),0,1);lay.addWidget(self.wifi_ssid,1,1);lay.addWidget(QtWidgets.QLabel('Passwort'),2,1);lay.addWidget(password_row,3,1);lay.addWidget(self.keyboard_button,4,1);lay.addWidget(connect,5,1);lay.addWidget(disconnect,6,1);lay.addWidget(self.wifi_result,7,1);lay.addWidget(self.wifi_signal,8,1)
         lay.setColumnStretch(0,3);lay.setColumnStretch(1,2);QtCore.QTimer.singleShot(500,self._refresh_wifi_status);QtCore.QTimer.singleShot(800,self._scan_wifi);return root
     def eventFilter(self,obj,event):
         if obj is getattr(self,'wifi_password',None) and event.type()==QtCore.QEvent.MouseButtonPress:QtCore.QTimer.singleShot(0,self._show_touch_keyboard)
@@ -221,6 +221,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if item:self.wifi_ssid.setText(item.text().split(':',1)[0])
     def _show_touch_keyboard(self):
         self.wifi_password.setFocus(QtCore.Qt.MouseFocusReason)
+        if os.environ.get('XDG_SESSION_TYPE')=='wayland' or os.environ.get('WAYLAND_DISPLAY'):
+            subprocess.run(['gdbus','call','--session','--dest','sm.puri.OSK0','--object-path','/sm/puri/OSK0','--method','sm.puri.OSK0.SetVisible','true'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False,timeout=2)
+            return
         if self._keyboard_process and self._keyboard_process.poll() is None:return
         try:
             keyboard=shutil.which('matchbox-keyboard')
@@ -256,6 +259,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wifi_password.setEchoMode(QtWidgets.QLineEdit.Normal if visible else QtWidgets.QLineEdit.Password)
         self.wifi_reveal.setIcon(eye_icon(slashed=visible))
     def _hide_touch_keyboard(self):
+        if os.environ.get('XDG_SESSION_TYPE')=='wayland' or os.environ.get('WAYLAND_DISPLAY'):
+            subprocess.run(['gdbus','call','--session','--dest','sm.puri.OSK0','--object-path','/sm/puri/OSK0','--method','sm.puri.OSK0.SetVisible','false'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False,timeout=2)
         if self._keyboard_process and self._keyboard_process.poll() is None:self._keyboard_process.terminate()
         self._keyboard_process=None
     def _connect_wifi(self):
