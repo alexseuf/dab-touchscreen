@@ -74,7 +74,7 @@ class CompactValue(QtWidgets.QWidget):
 class MainWindow(QtWidgets.QMainWindow):
     model_event=QtCore.pyqtSignal(object);explorer_event=QtCore.pyqtSignal(object)
     def __init__(self,model,config,history=None):
-        super().__init__();self.model=model;self.config=config;self.history=history;self.mqtt=None;self.threadpool=QtCore.QThreadPool.globalInstance();self._keyboard_process=None;self._wifi_status_running=False
+        super().__init__();self.model=model;self.config=config;self.history=history;self.mqtt=None;self.threadpool=QtCore.QThreadPool.globalInstance();self._keyboard_process=None;self._touch_keyboard_visible=False;self._wifi_status_running=False
         self.setWindowTitle(config['app'].get('title','DAB Touchscreen'));self.resize(800,480);self.setMinimumSize(800,480);self._main_return_index=0;self._cpu_sample=None
         if os.environ.get('XDG_SESSION_TYPE')=='wayland' or os.environ.get('WAYLAND_DISPLAY'):
             self.setWindowFlag(QtCore.Qt.FramelessWindowHint,True);self._configure_panel_autohide()
@@ -91,11 +91,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _configure_panel_autohide(self):
         try:
-            directory=os.path.join(os.path.expanduser('~'),'.config','wf-panel-pi');os.makedirs(directory,exist_ok=True)
+            directory=os.path.join(os.path.expanduser('~'),'.config');os.makedirs(directory,exist_ok=True)
             path=os.path.join(directory,'wf-panel-pi.ini');panel=configparser.ConfigParser();panel.read(path)
             if not panel.has_section('panel'):panel.add_section('panel')
             panel.set('panel','autohide','true');panel.set('panel','exclusive','false');panel.set('panel','autohide_duration','150')
             with open(path,'w',encoding='utf-8') as handle:panel.write(handle)
+            QtCore.QTimer.singleShot(500,lambda:subprocess.run(['wfpanelctl','panel','hide'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False,timeout=2))
         except OSError:pass
 
     def _main_tab_changed(self,index):
@@ -212,7 +213,7 @@ class MainWindow(QtWidgets.QMainWindow):
         password_row=QtWidgets.QWidget();password_layout=QtWidgets.QHBoxLayout(password_row);password_layout.setContentsMargins(0,0,0,0);password_layout.setSpacing(4);password_layout.addWidget(self.wifi_password)
         self.wifi_reveal=QtWidgets.QPushButton();self.wifi_reveal.setIcon(eye_icon());self.wifi_reveal.setIconSize(QtCore.QSize(32,24));self.wifi_reveal.setCheckable(True);self.wifi_reveal.setFixedWidth(54);self.wifi_reveal.setToolTip('Passwort anzeigen/verbergen');self.wifi_reveal.toggled.connect(self._toggle_password_visibility);password_layout.addWidget(self.wifi_reveal)
         self.wifi_result=QtWidgets.QLabel('WLAN-Status wird geladen …');self.wifi_result.setWordWrap(True);self.wifi_signal=QtWidgets.QProgressBar();self.wifi_signal.setRange(0,100);self.wifi_signal.setTextVisible(False)
-        self.wifi_scan_button=QtWidgets.QPushButton('↻ WLAN scannen');self.wifi_scan_button.clicked.connect(self._scan_wifi);self.keyboard_button=QtWidgets.QPushButton('⌨ Tastatur');self.keyboard_button.clicked.connect(self._show_touch_keyboard)
+        self.wifi_scan_button=QtWidgets.QPushButton('↻ WLAN scannen');self.wifi_scan_button.clicked.connect(self._scan_wifi);self.keyboard_button=QtWidgets.QPushButton('⌨ Tastatur');self.keyboard_button.clicked.connect(self._toggle_touch_keyboard)
         connect=QtWidgets.QPushButton('Verbinden');connect.clicked.connect(self._connect_wifi);disconnect=QtWidgets.QPushButton('Trennen');disconnect.clicked.connect(self._disconnect_wifi)
         lay.setContentsMargins(6,4,6,4);lay.setVerticalSpacing(3)
         lay.addWidget(QtWidgets.QLabel('Verfügbare WLAN-Netze'),0,0);lay.addWidget(self.wifi_list,1,0,6,1);lay.addWidget(self.wifi_scan_button,7,0,2,1)
@@ -234,6 +235,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wifi_password.setFocus(QtCore.Qt.MouseFocusReason)
         if os.environ.get('XDG_SESSION_TYPE')=='wayland' or os.environ.get('WAYLAND_DISPLAY'):
             subprocess.run(['gdbus','call','--session','--dest','sm.puri.OSK0','--object-path','/sm/puri/OSK0','--method','sm.puri.OSK0.SetVisible','true'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False,timeout=2)
+            self._touch_keyboard_visible=True;self.keyboard_button.setText('⌨ Tastatur schließen')
             return
         if self._keyboard_process and self._keyboard_process.poll() is None:return
         try:
@@ -248,6 +250,9 @@ class MainWindow(QtWidgets.QMainWindow):
             log.close()
             QtCore.QTimer.singleShot(400,self._raise_touch_keyboard);QtCore.QTimer.singleShot(1000,self._raise_touch_keyboard)
         except OSError as exc:self.wifi_result.setText('Bildschirmtastatur konnte nicht gestartet werden: '+str(exc))
+    def _toggle_touch_keyboard(self):
+        if self._touch_keyboard_visible:self._hide_touch_keyboard()
+        else:self._show_touch_keyboard()
     def _raise_touch_keyboard(self):
         try:
             x11=ctypes.CDLL('libX11.so.6');x11.XOpenDisplay.restype=ctypes.c_void_p;display=x11.XOpenDisplay(None)
@@ -273,7 +278,8 @@ class MainWindow(QtWidgets.QMainWindow):
         if os.environ.get('XDG_SESSION_TYPE')=='wayland' or os.environ.get('WAYLAND_DISPLAY'):
             subprocess.run(['gdbus','call','--session','--dest','sm.puri.OSK0','--object-path','/sm/puri/OSK0','--method','sm.puri.OSK0.SetVisible','false'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False,timeout=2)
         if self._keyboard_process and self._keyboard_process.poll() is None:self._keyboard_process.terminate()
-        self._keyboard_process=None
+        self._keyboard_process=None;self._touch_keyboard_visible=False
+        if hasattr(self,'keyboard_button'):self.keyboard_button.setText('⌨ Tastatur')
     def _connect_wifi(self):
         ssid=self.wifi_ssid.text().strip()
         if not ssid:self.wifi_result.setText('Bitte zuerst ein WLAN auswählen');return
