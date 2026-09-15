@@ -103,6 +103,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if index==3:
             self._main_return_index=max(0,self.tabs.currentIndex()-1);self.settings_tabs.setCurrentIndex(0);self.nav_stack.setCurrentWidget(self.settings_tabs);self._refresh_network();self._refresh_system()
     def _settings_tab_changed(self,index):
+        if index!=1:self._hide_touch_keyboard()
         if index==3:
             self.tabs.blockSignals(True);self.tabs.setCurrentIndex(self._main_return_index);self.tabs.blockSignals(False);self.nav_stack.setCurrentWidget(self.tabs)
 
