@@ -1,0 +1,21 @@
+commissioning_mode: false
+stage: 8
+automatic_progression: false
+
+features:
+  gui: true
+  demo_data: false
+  mqtt_broker: true
+  mqtt_client: true
+  real_mqtt_mapping: true
+  history: true
+  ethernet_read: true
+  ethernet_write: true
+  wifi_scan: true
+  wifi_write: true
+  mqtt_explorer: true
+  autostart: true
+
+safety:
+  allow_network_changes: true
+  allow_credential_changes: true

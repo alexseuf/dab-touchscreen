@@ -1,0 +1,21 @@
+signals:
+  grid_voltage_l1: {topic: "dab/demo/grid/voltage_l1", unit: "V", label: "Netzspannung L1"}
+  grid_voltage_l2: {topic: "dab/demo/grid/voltage_l2", unit: "V", label: "Netzspannung L2"}
+  grid_voltage_l3: {topic: "dab/demo/grid/voltage_l3", unit: "V", label: "Netzspannung L3"}
+  grid_current_l1: {topic: "dab/demo/grid/current_l1", unit: "A", label: "Netzstrom L1"}
+  grid_current_l2: {topic: "dab/demo/grid/current_l2", unit: "A", label: "Netzstrom L2"}
+  grid_current_l3: {topic: "dab/demo/grid/current_l3", unit: "A", label: "Netzstrom L3"}
+  grid_power_l1: {topic: "dab/demo/grid/power_l1", unit: "W", label: "Netzleistung L1"}
+  grid_power_l2: {topic: "dab/demo/grid/power_l2", unit: "W", label: "Netzleistung L2"}
+  grid_power_l3: {topic: "dab/demo/grid/power_l3", unit: "W", label: "Netzleistung L3"}
+  grid_frequency: {topic: "dab/demo/grid/frequency", unit: "Hz", label: "Netzfrequenz"}
+  input_power: {topic: "dab/demo/pfc/input_power", unit: "W", label: "Eingangsleistung"}
+  dc_link_voltage: {topic: "dab/demo/pfc/dc_link_voltage", unit: "V", label: "Zwischenkreis"}
+  output_voltage: {topic: "dab/demo/dab/output_voltage", unit: "V", label: "Ausgangsspannung"}
+  output_current: {topic: "dab/demo/dab/output_current", unit: "A", label: "Ausgangsstrom"}
+  output_power: {topic: "dab/demo/dab/output_power", unit: "W", label: "Ausgangsleistung"}
+  temp_pfc: {topic: "dab/demo/temperature/pfc", unit: "°C", label: "Temperatur PFC"}
+  temp_dab_primary: {topic: "dab/demo/temperature/dab_primary", unit: "°C", label: "DAB primär"}
+  temp_dab_secondary: {topic: "dab/demo/temperature/dab_secondary", unit: "°C", label: "DAB sekundär"}
+  temp_inductor: {topic: "dab/demo/temperature/inductor", unit: "°C", label: "Drossel"}
+  temp_transformer: {topic: "dab/demo/temperature/transformer", unit: "°C", label: "Transformator"}
