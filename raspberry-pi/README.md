@@ -50,15 +50,24 @@ Berechtigungen, Konfiguration und Services auf denselben Sollzustand.
 
 ## Aktualisieren
 
-Im aktualisierten Repository-Checkout:
+Ein normales Update vom GitHub-Branch `main` wird aus dem Wurzelverzeichnis des
+Repositories ausgeführt:
 
 ```bash
-./update.sh
+cd ~/dab-touchscreen && git pull --ff-only origin main && sudo ./raspberry-pi/update.sh
 ```
 
 Das Skript verwendet den gleichen idempotenten Installer, überspringt aber
-`apt-get`. Für neue Paketabhängigkeiten stattdessen erneut `sudo ./install.sh`
-ausführen.
+bewusst `apt-get`. Wenn eine Firmware-Version neue oder geänderte Systempakete
+benötigt, muss stattdessen aus dem Repository-Wurzelverzeichnis
+`sudo ./raspberry-pi/install.sh` ausgeführt werden. Die Release-Hinweise müssen
+einen solchen Paketwechsel ausdrücklich kennzeichnen.
+
+Die Verzeichnisstruktur trennt Quellstand, lokale Secrets und persistente
+Laufzeitdaten, damit später ein Touchscreen-Firmware-Updater ergänzt werden kann.
+Dieser soll Versionen von GitHub ermitteln, Update und Downgrade anbieten,
+Abhängigkeiten berücksichtigen sowie Sicherung und Rollback verwalten. Dieses
+Firmware-Menü ist noch nicht Bestandteil des aktuellen Stands.
 
 ## Deinstallieren
 

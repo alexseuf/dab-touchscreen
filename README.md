@@ -77,6 +77,19 @@ systemd-, Display-, Touch-, Kiosk-, Netzwerk- und MQTT-Dateien.
 - Ungefährliche Vorlage für lokale Zugangsdaten:
   [`raspberry-pi/secrets.env.example`](raspberry-pi/secrets.env.example)
 
+Normales Update nach einem Merge in `main`:
+
+```bash
+cd ~/dab-touchscreen && git pull --ff-only origin main && sudo ./raspberry-pi/update.sh
+```
+
+`update.sh` überspringt die Installation von Systempaketen. Weist eine Version
+neue oder geänderte Paketabhängigkeiten aus, ist stattdessen
+`sudo ./raspberry-pi/install.sh` auszuführen. Die bestehende Trennung von
+Repository, lokalen Secrets und Laufzeitdaten bleibt als Grundlage für einen
+späteren versionsbewussten Firmware-Updater mit Sicherung und Rollback erhalten;
+ein solches Menü wird in diesem Pull Request noch nicht implementiert.
+
 Echte Laufzeitdaten und Zugangsdaten bleiben lokal und werden durch die
 Ignore-Regeln ausgeschlossen. Historische, inzwischen abgelöste
 Migrationshelfer sind nur zur Nachvollziehbarkeit unter

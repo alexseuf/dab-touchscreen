@@ -12,21 +12,24 @@ GitHub-Repository zeigt. Die Beispiele verwenden den Branch `main`.
 5. Auf dem Raspberry anschließend den Stand holen und installieren:
 
 ```bash
-cd ~/dab-touchscreen/raspberry-pi
+cd ~/dab-touchscreen
 git pull --ff-only origin main
-sudo ./update.sh
+sudo ./raspberry-pi/update.sh
 ```
 
 `--ff-only` verhindert einen unbeabsichtigten lokalen Merge-Commit.
+`update.sh` installiert den aktuellen Anwendungsstand, überspringt aber bewusst
+`apt-get`. Wenn eine Firmware-Version neue oder geänderte Systempakete benötigt,
+muss nach dem Pull stattdessen `sudo ./raspberry-pi/install.sh` ausgeführt werden.
 
 ## Lokale Änderungen committen und pushen
 
 ```bash
-cd ~/dab-touchscreen/raspberry-pi
+cd ~/dab-touchscreen
 git status
 git pull --rebase origin main
 # Dateien bearbeiten und testen
-python3 -m unittest discover -s tests -v
+python3 -m unittest discover -s raspberry-pi/tests -v
 git add <dateien>
 git commit -m "Kurze Beschreibung"
 git push origin main
@@ -95,7 +98,7 @@ Zurück zum aktuellen Hauptzweig:
 ```bash
 git switch main
 git pull --ff-only origin main
-sudo ./update.sh
+sudo ./raspberry-pi/update.sh
 ```
 
 Soll ein alter Stand dauerhaft weiterentwickelt werden, dafür einen neuen Branch
