@@ -1,22 +1,13 @@
-# Python
 __pycache__/
 *.py[cod]
+*.sqlite3
+*.sqlite3-*
+*.log
 .venv/
 venv/
-
-# Local runtime state
-commissioning-state.json
-*.sqlite
-*.sqlite3
-*.db
-logs/
-
-# Local secrets - NEVER COMMIT
+.pytest_cache/
+.coverage
 secrets.env
-*.secrets
-*.secret
-config/local*.yaml
-config/local*.yml
 .env
 .env.*
 !.env.example
@@ -32,6 +23,8 @@ tokens/
 authorized_keys
 *.nmconnection
 NetworkManager/
+config/local*.yaml
+config/local*.yml
 config/*secret*.yaml
 config/*secret*.yml
 *.key
@@ -39,8 +32,3 @@ config/*secret*.yml
 *.p12
 *.pfx
 id_*
-
-# IDE / OS
-.vscode/
-.idea/
-.DS_Store

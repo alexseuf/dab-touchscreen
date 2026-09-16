@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=DAB Touchscreen
+Comment=Start the DAB HMI in the Raspberry Pi Wayland session
+Exec=/opt/dab-touchscreen/scripts/dab-wayland-app.sh
+Terminal=false
+X-GNOME-Autostart-enabled=true

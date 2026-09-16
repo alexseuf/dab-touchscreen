@@ -1,0 +1,17 @@
+[Unit]
+Description=DAB MQTT demo publisher
+After=mosquitto.service
+Requires=mosquitto.service
+
+[Service]
+Type=simple
+User=dab
+Group=dab
+WorkingDirectory=/opt/dab-touchscreen
+EnvironmentFile=-/etc/dab-touchscreen/env
+ExecStart=/usr/bin/python3 /opt/dab-touchscreen/scripts/mqtt_simulator.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
