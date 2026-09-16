@@ -1,6 +1,6 @@
 polkit.addRule(function(action, subject) {
     if (action.id == "org.freedesktop.policykit.exec" &&
-        subject.user == "dab" && subject.local && subject.active &&
+        subject.user == "dab" &&
         action.lookup("program") == "/opt/dab-touchscreen/scripts/firmware-update-helper.sh") {
         return polkit.Result.YES;
     }
