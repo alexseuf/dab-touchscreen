@@ -36,7 +36,7 @@ PACKAGES=(
     python3 python3-yaml python3-pyqt5 python3-pyqtgraph python3-paho-mqtt sqlite3
     lightdm labwc xwayland wf-panel-pi wfplug-squeek squeekboard qtwayland5 wlr-randr autotouch
     raspberrypi-ui-mods fonts-dejavu-core avahi-daemon
-    rsync ca-certificates
+    rsync ca-certificates util-linux
 )
 
 if (( RUN_APT )); then
@@ -127,6 +127,7 @@ install -o root -g root -m 0644 "$ROOT_DIR/system/lightdm-dab-touchscreen.conf" 
 install -o root -g root -m 0644 "$ROOT_DIR/system/dab-touchscreen.desktop" /etc/xdg/autostart/dab-touchscreen.desktop
 install -o root -g root -m 0644 "$ROOT_DIR/system/40-dab-touchscreen-rotate.conf" /etc/X11/xorg.conf.d/40-dab-touchscreen-rotate.conf
 install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-networkmanager.rules" /etc/polkit-1/rules.d/49-dab-networkmanager.rules
+install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-firmware-update.rules" /etc/polkit-1/rules.d/49-dab-firmware-update.rules
 
 python3 -m compileall -q "$INSTALL_DIR/src" "$INSTALL_DIR/scripts"
 (
