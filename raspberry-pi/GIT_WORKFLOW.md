@@ -12,7 +12,7 @@ GitHub-Repository zeigt. Die Beispiele verwenden den Branch `main`.
 5. Auf dem Raspberry anschließend den Stand holen und installieren:
 
 ```bash
-cd ~/dab-touchscreen-standalone
+cd ~/dab-touchscreen/raspberry-pi
 git pull --ff-only origin main
 sudo ./update.sh
 ```
@@ -22,7 +22,7 @@ sudo ./update.sh
 ## Lokale Änderungen committen und pushen
 
 ```bash
-cd ~/dab-touchscreen-standalone
+cd ~/dab-touchscreen/raspberry-pi
 git status
 git pull --rebase origin main
 # Dateien bearbeiten und testen
@@ -41,8 +41,8 @@ Auf Raspberry Pi OS Bookworm Desktop 64-bit:
 
 ```bash
 cd ~
-git clone <BESTAETIGTE-GITHUB-REPOSITORY-URL> dab-touchscreen-standalone
-cd dab-touchscreen-standalone
+git clone https://github.com/alexseuf/dab-touchscreen.git dab-touchscreen
+cd dab-touchscreen/raspberry-pi
 cp secrets.env.example secrets.env   # nur falls MQTT-Secrets benötigt werden
 nano secrets.env                     # echte Werte ausschließlich lokal eintragen
 sudo ./install.sh
