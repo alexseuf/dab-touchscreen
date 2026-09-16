@@ -34,6 +34,24 @@ PY
     chown "$SERVICE_USER:$SERVICE_USER" "$STATUS_FILE"
 }
 
+package_signature() {
+    python3 - "$1" <<'PY'
+import re, sys
+try:
+    text=open(sys.argv[1],encoding="utf-8").read()
+except OSError:
+    raise SystemExit(1)
+m=re.search(r'^PACKAGES=\(\n(.*?)^\)', text, re.M|re.S)
+if not m:
+    raise SystemExit(1)
+items=[]
+for line in m.group(1).splitlines():
+    line=line.split('#',1)[0].strip()
+    items.extend(line.split())
+print('\n'.join(sorted(set(items))))
+PY
+}
+
 stamp=$(date +%Y%m%d-%H%M%S)
 stage="$STAGE_ROOT/$sha"
 backup="$BACKUP_ROOT/$stamp-$sha"
@@ -41,9 +59,6 @@ archive="$STAGE_ROOT/$sha.tar.gz"
 old_commit=""
 [[ -r "$STATE_DIR/firmware-state.json" ]] && old_commit=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("sha",""))' "$STATE_DIR/firmware-state.json" 2>/dev/null || true)
 
-# Download and validation happen before the rollback trap is armed. A bad or
-# unreachable commit must never touch the active installation or create a
-# misleading rollback event.
 rm -rf "$stage" "$archive"
 status download "Commit wird heruntergeladen"
 if ! python3 - "$repo" "$sha" "$archive" <<'PY'
@@ -67,38 +82,32 @@ PY
 then
     rm -f "$archive"
     status failed "Update fehlgeschlagen: Commit nicht gefunden oder Download nicht möglich"
-    echo "Update fehlgeschlagen: Commit nicht gefunden oder Download nicht möglich" >&2
     exit 20
 fi
 
 mkdir -p "$stage"
 if ! tar -xzf "$archive" -C "$stage" --strip-components=1; then
-    rm -rf "$stage" "$archive"
-    status failed "Update fehlgeschlagen: Firmware-Archiv ist ungültig"
-    echo "Update fehlgeschlagen: Firmware-Archiv ist ungültig" >&2
-    exit 22
+    rm -rf "$stage" "$archive"; status failed "Update fehlgeschlagen: Firmware-Archiv ist ungültig"; exit 22
 fi
 rm -f "$archive"
-
 src="$stage/raspberry-pi"
 if [[ ! -f "$src/install.sh" || ! -f "$src/VERSION" || ! -f "$src/src/main.py" || ! -d "$src/tests" ]]; then
-    rm -rf "$stage"
-    status failed "Update fehlgeschlagen: Projektstruktur ist ungültig"
-    echo "Update fehlgeschlagen: Projektstruktur ist ungültig" >&2
-    exit 23
+    rm -rf "$stage"; status failed "Update fehlgeschlagen: Projektstruktur ist ungültig"; exit 23
 fi
 chmod 0755 "$src/install.sh"
 
 status verify "Download wird geprüft"
-if ! (
-    cd "$src"
-    PYTHONPATH="$src" python3 -m compileall -q src scripts
-    PYTHONPATH="$src" python3 -m unittest discover -s tests -v
-); then
-    rm -rf "$stage"
-    status failed "Update fehlgeschlagen: Vorabprüfung fehlgeschlagen"
-    echo "Update fehlgeschlagen: Vorabprüfung fehlgeschlagen" >&2
-    exit 24
+if ! (cd "$src"; PYTHONPATH="$src" python3 -m compileall -q src scripts; PYTHONPATH="$src" python3 -m unittest discover -s tests -v); then
+    rm -rf "$stage"; status failed "Update fehlgeschlagen: Vorabprüfung fehlgeschlagen"; exit 24
+fi
+
+# Compare the package declaration in the installed and candidate installers.
+# A changed dependency set deliberately selects the full apt-enabled path.
+run_apt=0
+candidate_packages=$(package_signature "$src/install.sh" 2>/dev/null || true)
+installed_packages=$(package_signature "$INSTALL_DIR/install.sh" 2>/dev/null || true)
+if [[ -z $candidate_packages || -z $installed_packages || $candidate_packages != "$installed_packages" ]]; then
+    run_apt=1
 fi
 
 rollback() {
@@ -115,24 +124,22 @@ rollback() {
     fi
     exit "$rc"
 }
-
-# From this point onward the active installation may be changed, so every
-# unexpected failure must trigger rollback.
 trap rollback ERR
 
 status backup "Backup der aktuellen Installation wird erstellt"
 mkdir -p "$backup"
 rsync -a "$INSTALL_DIR/" "$backup/"
 
-status install "Version wird installiert"
-"$src/install.sh" --no-apt --no-restart
+if (( run_apt )); then
+    status install "Abhängigkeiten geändert – vollständige Installation"
+    "$src/install.sh" --no-restart
+else
+    status install "Version wird installiert"
+    "$src/install.sh" --no-apt --no-restart
+fi
 
 status health "Installierte Version wird geprüft"
-(
-    cd "$INSTALL_DIR"
-    PYTHONPATH="$INSTALL_DIR" python3 -m compileall -q src scripts
-    PYTHONPATH="$INSTALL_DIR" python3 -m unittest discover -s tests -v
-)
+(cd "$INSTALL_DIR"; PYTHONPATH="$INSTALL_DIR" python3 -m compileall -q src scripts; PYTHONPATH="$INSTALL_DIR" python3 -m unittest discover -s tests -v)
 
 python3 - "$STATE_DIR/firmware-state.json" "$repo" "$sha" "$label" "$old_commit" <<'PY'
 import json,sys,time,os
@@ -148,8 +155,6 @@ systemctl restart lightdm.service
 sleep 8
 pgrep -u "$SERVICE_USER" -f '/usr/bin/python3 -m src.main' >/dev/null
 status success "Update erfolgreich installiert"
-
-# Keep only the five newest backups.
 ls -1dt "$BACKUP_ROOT"/* 2>/dev/null | tail -n +6 | xargs -r rm -rf
 rm -rf "$stage"
 trap - ERR
