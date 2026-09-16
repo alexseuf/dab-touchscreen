@@ -41,6 +41,66 @@ archive="$STAGE_ROOT/$sha.tar.gz"
 old_commit=""
 [[ -r "$STATE_DIR/firmware-state.json" ]] && old_commit=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("sha",""))' "$STATE_DIR/firmware-state.json" 2>/dev/null || true)
 
+# Download and validation happen before the rollback trap is armed. A bad or
+# unreachable commit must never touch the active installation or create a
+# misleading rollback event.
+rm -rf "$stage" "$archive"
+status download "Commit wird heruntergeladen"
+if ! python3 - "$repo" "$sha" "$archive" <<'PY'
+import sys, urllib.error, urllib.request
+repo,sha,out=sys.argv[1:]
+url=f"https://codeload.github.com/{repo}/tar.gz/{sha}"
+req=urllib.request.Request(url,headers={"User-Agent":"dab-touchscreen-updater"})
+try:
+    with urllib.request.urlopen(req,timeout=30) as r, open(out,"wb") as f:
+        while True:
+            b=r.read(1024*1024)
+            if not b: break
+            f.write(b)
+except urllib.error.HTTPError as exc:
+    print(f"GitHub HTTP {exc.code}: Commit nicht gefunden oder Download nicht möglich", file=sys.stderr)
+    raise SystemExit(20)
+except (urllib.error.URLError, TimeoutError, OSError) as exc:
+    print(f"Download nicht möglich: {exc}", file=sys.stderr)
+    raise SystemExit(21)
+PY
+then
+    rm -f "$archive"
+    status failed "Update fehlgeschlagen: Commit nicht gefunden oder Download nicht möglich"
+    echo "Update fehlgeschlagen: Commit nicht gefunden oder Download nicht möglich" >&2
+    exit 20
+fi
+
+mkdir -p "$stage"
+if ! tar -xzf "$archive" -C "$stage" --strip-components=1; then
+    rm -rf "$stage" "$archive"
+    status failed "Update fehlgeschlagen: Firmware-Archiv ist ungültig"
+    echo "Update fehlgeschlagen: Firmware-Archiv ist ungültig" >&2
+    exit 22
+fi
+rm -f "$archive"
+
+src="$stage/raspberry-pi"
+if [[ ! -f "$src/install.sh" || ! -f "$src/VERSION" || ! -f "$src/src/main.py" || ! -d "$src/tests" ]]; then
+    rm -rf "$stage"
+    status failed "Update fehlgeschlagen: Projektstruktur ist ungültig"
+    echo "Update fehlgeschlagen: Projektstruktur ist ungültig" >&2
+    exit 23
+fi
+chmod 0755 "$src/install.sh"
+
+status verify "Download wird geprüft"
+if ! (
+    cd "$src"
+    PYTHONPATH="$src" python3 -m compileall -q src scripts
+    PYTHONPATH="$src" python3 -m unittest discover -s tests -v
+); then
+    rm -rf "$stage"
+    status failed "Update fehlgeschlagen: Vorabprüfung fehlgeschlagen"
+    echo "Update fehlgeschlagen: Vorabprüfung fehlgeschlagen" >&2
+    exit 24
+fi
+
 rollback() {
     rc=$?
     trap - ERR
@@ -55,36 +115,10 @@ rollback() {
     fi
     exit "$rc"
 }
+
+# From this point onward the active installation may be changed, so every
+# unexpected failure must trigger rollback.
 trap rollback ERR
-
-rm -rf "$stage" "$archive"
-status download "Commit wird heruntergeladen"
-python3 - "$repo" "$sha" "$archive" <<'PY'
-import sys, urllib.request
-repo,sha,out=sys.argv[1:]
-url=f"https://codeload.github.com/{repo}/tar.gz/{sha}"
-req=urllib.request.Request(url,headers={"User-Agent":"dab-touchscreen-updater"})
-with urllib.request.urlopen(req,timeout=30) as r, open(out,"wb") as f:
-    while True:
-        b=r.read(1024*1024)
-        if not b: break
-        f.write(b)
-PY
-mkdir -p "$stage"
-tar -xzf "$archive" -C "$stage" --strip-components=1
-rm -f "$archive"
-
-src="$stage/raspberry-pi"
-[[ -x "$src/install.sh" || -f "$src/install.sh" ]]
-[[ -f "$src/VERSION" && -f "$src/src/main.py" && -d "$src/tests" ]]
-chmod 0755 "$src/install.sh"
-
-status verify "Download wird geprüft"
-(
-    cd "$src"
-    PYTHONPATH="$src" python3 -m compileall -q src scripts
-    PYTHONPATH="$src" python3 -m unittest discover -s tests -v
-)
 
 status backup "Backup der aktuellen Installation wird erstellt"
 mkdir -p "$backup"
