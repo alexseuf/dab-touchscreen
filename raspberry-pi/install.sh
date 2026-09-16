@@ -129,7 +129,10 @@ install -o root -g root -m 0644 "$ROOT_DIR/system/40-dab-touchscreen-rotate.conf
 install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-networkmanager.rules" /etc/polkit-1/rules.d/49-dab-networkmanager.rules
 
 python3 -m compileall -q "$INSTALL_DIR/src" "$INSTALL_DIR/scripts"
-python3 -m unittest discover -s "$INSTALL_DIR/tests" -v
+(
+    cd "$INSTALL_DIR"
+    PYTHONPATH="$INSTALL_DIR${PYTHONPATH:+:$PYTHONPATH}" python3 -m unittest discover -s tests -v
+)
 
 systemctl daemon-reload
 systemctl enable NetworkManager.service mosquitto.service lightdm.service
