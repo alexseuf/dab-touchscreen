@@ -44,6 +44,11 @@ if (( RUN_APT )); then
     DEBIAN_FRONTEND=noninteractive apt-get install -y "${PACKAGES[@]}"
 fi
 
+# Kiosk display: keep normal apt package management available, but remove the
+# Raspberry Pi desktop panel updater plugins which place update popups over the
+# full-screen DAB application. These are optional/recommended UI plugins only.
+DEBIAN_FRONTEND=noninteractive apt-get remove -y lxplug-updater wfplug-updater 2>/dev/null || true
+
 if ! id "$SERVICE_USER" >/dev/null 2>&1; then
     useradd --create-home --shell /bin/bash "$SERVICE_USER"
 fi
@@ -68,7 +73,6 @@ DAB_MQTT_LISTEN_ADDRESS=127.0.0.1
 DAB_MQTT_USERNAME=
 DAB_MQTT_PASSWORD=
 if [[ -f "$ROOT_DIR/secrets.env" ]]; then
-    # shellcheck disable=SC1091
     . "$ROOT_DIR/secrets.env"
 fi
 
@@ -78,30 +82,16 @@ import ipaddress, sys
 ipaddress.ip_address(sys.argv[1])
 PY
 for value in "${DAB_MQTT_USERNAME:-}" "${DAB_MQTT_PASSWORD:-}"; do
-    if [[ -n $value && ! $value =~ ^[A-Za-z0-9._@%+=:-]+$ ]]; then
-        echo "MQTT-Zugangsdaten dürfen nur A-Z, a-z, 0-9 und ._@%+=:- enthalten" >&2
-        exit 1
-    fi
+    if [[ -n $value && ! $value =~ ^[A-Za-z0-9._@%+=:-]+$ ]]; then echo "MQTT-Zugangsdaten dürfen nur A-Z, a-z, 0-9 und ._@%+=:- enthalten" >&2; exit 1; fi
 done
 if [[ -n ${DAB_MQTT_USERNAME:-} || -n ${DAB_MQTT_PASSWORD:-} ]]; then
-    if [[ -z ${DAB_MQTT_USERNAME:-} || -z ${DAB_MQTT_PASSWORD:-} ]]; then
-        echo "DAB_MQTT_USERNAME und DAB_MQTT_PASSWORD müssen gemeinsam gesetzt werden" >&2
-        exit 1
-    fi
-    ALLOW_ANONYMOUS=false
-    PASSWORD_DIRECTIVE='password_file /etc/mosquitto/dab-touchscreen.passwd'
-    umask 077
-    mosquitto_passwd -b -c /etc/mosquitto/dab-touchscreen.passwd "$DAB_MQTT_USERNAME" "$DAB_MQTT_PASSWORD"
-    chown root:mosquitto /etc/mosquitto/dab-touchscreen.passwd
-    chmod 0640 /etc/mosquitto/dab-touchscreen.passwd
+    if [[ -z ${DAB_MQTT_USERNAME:-} || -z ${DAB_MQTT_PASSWORD:-} ]]; then echo "DAB_MQTT_USERNAME und DAB_MQTT_PASSWORD müssen gemeinsam gesetzt werden" >&2; exit 1; fi
+    ALLOW_ANONYMOUS=false; PASSWORD_DIRECTIVE='password_file /etc/mosquitto/dab-touchscreen.passwd'
+    umask 077; mosquitto_passwd -b -c /etc/mosquitto/dab-touchscreen.passwd "$DAB_MQTT_USERNAME" "$DAB_MQTT_PASSWORD"
+    chown root:mosquitto /etc/mosquitto/dab-touchscreen.passwd; chmod 0640 /etc/mosquitto/dab-touchscreen.passwd
 else
-    if [[ ${DAB_MQTT_LISTEN_ADDRESS:-127.0.0.1} != 127.0.0.1 && ${DAB_MQTT_LISTEN_ADDRESS:-} != ::1 ]]; then
-        echo "Externer MQTT-Listener ohne Benutzer/Passwort wird aus Sicherheitsgründen nicht installiert" >&2
-        exit 1
-    fi
-    ALLOW_ANONYMOUS=true
-    PASSWORD_DIRECTIVE=
-    rm -f /etc/mosquitto/dab-touchscreen.passwd
+    if [[ ${DAB_MQTT_LISTEN_ADDRESS:-127.0.0.1} != 127.0.0.1 && ${DAB_MQTT_LISTEN_ADDRESS:-} != ::1 ]]; then echo "Externer MQTT-Listener ohne Benutzer/Passwort wird aus Sicherheitsgründen nicht installiert" >&2; exit 1; fi
+    ALLOW_ANONYMOUS=true; PASSWORD_DIRECTIVE=; rm -f /etc/mosquitto/dab-touchscreen.passwd
 fi
 
 umask 027
@@ -111,16 +101,10 @@ umask 027
     printf 'DAB_MQTT_USERNAME=%s\n' "${DAB_MQTT_USERNAME:-}"
     printf 'DAB_MQTT_PASSWORD=%s\n' "${DAB_MQTT_PASSWORD:-}"
 } >"$ENV_DIR/env"
-chown root:"$SERVICE_USER" "$ENV_DIR/env"
-chmod 0640 "$ENV_DIR/env"
+chown root:"$SERVICE_USER" "$ENV_DIR/env"; chmod 0640 "$ENV_DIR/env"
 
-sed \
-    -e "s/__LISTEN_ADDRESS__/${DAB_MQTT_LISTEN_ADDRESS:-127.0.0.1}/" \
-    -e "s/__ALLOW_ANONYMOUS__/$ALLOW_ANONYMOUS/" \
-    -e "s|__PASSWORD_FILE__|$PASSWORD_DIRECTIVE|" \
-    "$ROOT_DIR/system/mosquitto-dab.conf" >/etc/mosquitto/conf.d/dab-touchscreen.conf
-chown root:root /etc/mosquitto/conf.d/dab-touchscreen.conf
-chmod 0644 /etc/mosquitto/conf.d/dab-touchscreen.conf
+sed -e "s/__LISTEN_ADDRESS__/${DAB_MQTT_LISTEN_ADDRESS:-127.0.0.1}/" -e "s/__ALLOW_ANONYMOUS__/$ALLOW_ANONYMOUS/" -e "s|__PASSWORD_FILE__|$PASSWORD_DIRECTIVE|" "$ROOT_DIR/system/mosquitto-dab.conf" >/etc/mosquitto/conf.d/dab-touchscreen.conf
+chown root:root /etc/mosquitto/conf.d/dab-touchscreen.conf; chmod 0644 /etc/mosquitto/conf.d/dab-touchscreen.conf
 
 install -o root -g root -m 0644 "$ROOT_DIR/systemd/dab-mqtt-simulator.service" /etc/systemd/system/dab-mqtt-simulator.service
 install -o root -g root -m 0644 "$ROOT_DIR/system/lightdm-dab-touchscreen.conf" /etc/lightdm/lightdm.conf.d/50-dab-touchscreen.conf
@@ -130,19 +114,12 @@ install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-networkmanager.rules" /
 install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-firmware-update.rules" /etc/polkit-1/rules.d/49-dab-firmware-update.rules
 
 python3 -m compileall -q "$INSTALL_DIR/src" "$INSTALL_DIR/scripts"
-(
-    cd "$INSTALL_DIR"
-    PYTHONPATH="$INSTALL_DIR${PYTHONPATH:+:$PYTHONPATH}" python3 -m unittest discover -s tests -v
-)
+(cd "$INSTALL_DIR"; PYTHONPATH="$INSTALL_DIR${PYTHONPATH:+:$PYTHONPATH}" python3 -m unittest discover -s tests -v)
 
 systemctl daemon-reload
 systemctl enable NetworkManager.service mosquitto.service lightdm.service
 systemctl disable --now dab-touchscreen.service 2>/dev/null || true
-if [[ $DAB_ENABLE_SIMULATOR == 1 ]]; then
-    systemctl enable dab-mqtt-simulator.service
-else
-    systemctl disable --now dab-mqtt-simulator.service 2>/dev/null || true
-fi
+if [[ $DAB_ENABLE_SIMULATOR == 1 ]]; then systemctl enable dab-mqtt-simulator.service; else systemctl disable --now dab-mqtt-simulator.service 2>/dev/null || true; fi
 systemctl restart mosquitto.service
 if [[ $DAB_ENABLE_SIMULATOR == 1 ]]; then systemctl restart dab-mqtt-simulator.service; fi
 systemctl set-default graphical.target
