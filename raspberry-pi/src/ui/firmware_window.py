@@ -17,6 +17,7 @@ from src.ui.main_window import MainWindow
 DEFAULT_REPOSITORY = "alexseuf/dab-touchscreen"
 ROOT = Path(__file__).resolve().parents[2]
 UPDATE_STATUS = Path("/var/lib/dab-touchscreen/firmware-update-status.json")
+UPDATE_STATE = Path("/var/lib/dab-touchscreen/firmware-state.json")
 UPDATE_HELPER = Path("/opt/dab-touchscreen/scripts/firmware-update-helper.sh")
 
 
@@ -32,6 +33,7 @@ class FirmwareMainWindow(MainWindow):
         super().__init__(model, config, history)
         self.settings_tabs.insertTab(3, self._firmware_page(), "Firmware")
         self._refresh_installed_version()
+        self._refresh_last_update_result()
         self._fw_status_timer = QtCore.QTimer(self)
         self._fw_status_timer.setInterval(1000)
         self._fw_status_timer.timeout.connect(self._poll_update_status)
@@ -40,6 +42,7 @@ class FirmwareMainWindow(MainWindow):
         self._hide_touch_keyboard()
         if index == 3:
             self._refresh_installed_version()
+            self._refresh_last_update_result()
         if index == 4:
             self.tabs.blockSignals(True)
             self.tabs.setCurrentIndex(self._main_return_index)
@@ -93,15 +96,38 @@ class FirmwareMainWindow(MainWindow):
         self.fw_repository.setText(repo); self._settings.setValue("firmware/repository", repo); self.fw_status.setText("Repository gespeichert"); self._firmware_selection_changed()
 
     def _installed_version(self):
-        version_file = ROOT / "VERSION"
+        version = "Entwicklungsstand"
         try:
-            value = version_file.read_text(encoding="utf-8").strip()
-            if value: return value
-        except OSError: pass
-        return "Entwicklungsstand"
+            value = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+            if value: version = value
+        except OSError:
+            pass
+        try:
+            state = json.loads(UPDATE_STATE.read_text(encoding="utf-8"))
+            sha = str(state.get("sha", ""))
+            label = str(state.get("label", ""))
+            if re.fullmatch(r"[0-9a-fA-F]{40}", sha):
+                channel = "TEST" if label.startswith("TEST") else ("Main" if label.startswith("Main") else "Stable")
+                return f"{version} · {channel} {sha[:7]}"
+        except (OSError, ValueError, TypeError):
+            pass
+        return version
 
     def _refresh_installed_version(self):
         if hasattr(self, "fw_current"): self.fw_current.setText(self._installed_version())
+
+    def _refresh_last_update_result(self):
+        if not hasattr(self, "fw_status") or not UPDATE_STATUS.exists(): return
+        try:
+            data = json.loads(UPDATE_STATUS.read_text(encoding="utf-8"))
+            state = data.get("state", "")
+            sha = str(data.get("sha", ""))
+            if state == "success" and re.fullmatch(r"[0-9a-fA-F]{40}", sha):
+                self.fw_status.setText(f"Update erfolgreich · {sha[:7]}")
+            elif state == "failed":
+                self.fw_status.setText(str(data.get("message", "Letztes Update fehlgeschlagen")))
+        except (OSError, ValueError, TypeError):
+            pass
 
     def _set_data_mode(self, demo):
         self.config["app"]["demo_data"] = bool(demo); self._show_data_mode(bool(demo)); self.data_mode_changed.emit(bool(demo))
