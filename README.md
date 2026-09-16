@@ -62,3 +62,22 @@ Die Mock-ups wurden überwiegend mit `Arial`/`sans-serif` beschrieben. Für die 
 - Bildschirmtastatur darf das aktive Eingabefeld nicht verdecken.
 
 Weitere Details: [`UI_SPEC.md`](UI_SPEC.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`PROJECT_PROMPT.md`](PROJECT_PROMPT.md), [`COMMISSIONING.md`](COMMISSIONING.md).
+
+## Raspberry-Pi-Implementierung und Wiederherstellung
+
+Die eigenständig installierbare, auf dem Zielgerät geprüfte Implementierung liegt
+unter [`raspberry-pi/`](raspberry-pi/). Sie enthält Anwendung, Konfiguration,
+Installations-, Aktualisierungs- und Deinstallationsskripte sowie die benötigten
+systemd-, Display-, Touch-, Kiosk-, Netzwerk- und MQTT-Dateien.
+
+- Installation auf einem frischen Raspberry Pi OS:
+  [`raspberry-pi/README.md`](raspberry-pi/README.md)
+- Arbeiten mit GitHub, Aktualisierung und Wiederherstellung bekannter Stände:
+  [`raspberry-pi/GIT_WORKFLOW.md`](raspberry-pi/GIT_WORKFLOW.md)
+- Ungefährliche Vorlage für lokale Zugangsdaten:
+  [`raspberry-pi/secrets.env.example`](raspberry-pi/secrets.env.example)
+
+Echte Laufzeitdaten und Zugangsdaten bleiben lokal und werden durch die
+Ignore-Regeln ausgeschlossen. Historische, inzwischen abgelöste
+Migrationshelfer sind nur zur Nachvollziehbarkeit unter
+[`archive/legacy-runtime/`](archive/legacy-runtime/) abgelegt.

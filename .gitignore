@@ -18,6 +18,27 @@ secrets.env
 config/local*.yaml
 config/local*.yml
 .env
+.env.*
+!.env.example
+secrets.env.*
+!secrets.env.example
+credentials.json
+credentials.*.json
+*credentials*.yaml
+*credentials*.yml
+*.token
+tokens/
+.ssh/
+authorized_keys
+*.nmconnection
+NetworkManager/
+config/*secret*.yaml
+config/*secret*.yml
+*.key
+*.pem
+*.p12
+*.pfx
+id_*
 
 # IDE / OS
 .vscode/
