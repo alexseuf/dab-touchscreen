@@ -52,6 +52,11 @@ class FirmwareMainWindow(MainWindow):
     def eventFilter(self, obj, event):
         if obj is getattr(self, "fw_repository", None) and event.type() == QtCore.QEvent.MouseButtonPress:
             QtCore.QTimer.singleShot(0, lambda: self._show_touch_keyboard(self.fw_repository))
+        keyboard_fields = tuple(getattr(self, "lan_fields", ())) + tuple(
+            field for field in (getattr(self, "wifi_password", None), getattr(self, "fw_repository", None)) if field is not None
+        )
+        if obj in keyboard_fields and event.type() == QtCore.QEvent.KeyPress and event.key() in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter):
+            QtCore.QTimer.singleShot(0, self._hide_touch_keyboard)
         return super().eventFilter(obj, event)
 
     def _firmware_page(self):
@@ -68,13 +73,16 @@ class FirmwareMainWindow(MainWindow):
         latest_row = QtWidgets.QWidget(); latest_layout = QtWidgets.QHBoxLayout(latest_row); latest_layout.setContentsMargins(0, 0, 0, 0); latest_layout.setSpacing(5); latest_layout.addWidget(self.fw_latest, 3)
         self.fw_check_button = QtWidgets.QPushButton("Jetzt prüfen"); self.fw_check_button.setMinimumHeight(38); self.fw_check_button.clicked.connect(self._check_firmware_versions); latest_layout.addWidget(self.fw_check_button, 2)
         self._add_firmware_row(grid, 3, "Neueste Version", latest_row); self._add_firmware_row(grid, 4, "Status", self.fw_status)
+
+        action_row = QtWidgets.QHBoxLayout()
+        self.fw_version_combo = QtWidgets.QComboBox(); self.fw_version_combo.addItem("Version wählen …"); self.fw_version_combo.setEnabled(False); self.fw_version_combo.currentIndexChanged.connect(self._firmware_selection_changed)
+        self.fw_install_button = QtWidgets.QPushButton("Version installieren"); self.fw_install_button.setEnabled(False); self.fw_install_button.clicked.connect(self._install_selected_version)
+        action_row.addWidget(self.fw_version_combo, 3); action_row.addWidget(self.fw_install_button, 2); left_layout.addLayout(action_row)
+
         separator = QtWidgets.QFrame(); separator.setFrameShape(QtWidgets.QFrame.HLine); separator.setStyleSheet("color:#355364"); left_layout.addWidget(separator)
         mode_row = QtWidgets.QHBoxLayout(); mode_label = QtWidgets.QLabel("Betriebsmodus"); mode_label.setStyleSheet("font-weight:bold"); mode_row.addWidget(mode_label, 2)
         self.fw_live_button = QtWidgets.QPushButton("Live (MQTT)"); self.fw_demo_button = QtWidgets.QPushButton("Demo"); self.fw_live_button.setCheckable(True); self.fw_demo_button.setCheckable(True); self.fw_live_button.clicked.connect(lambda: self._set_data_mode(False)); self.fw_demo_button.clicked.connect(lambda: self._set_data_mode(True)); mode_row.addWidget(self.fw_live_button, 2); mode_row.addWidget(self.fw_demo_button, 1); left_layout.addLayout(mode_row); self._show_data_mode(bool(self.config["app"].get("demo_data", True)))
-        action_row = QtWidgets.QHBoxLayout()
-        self.fw_install_button = QtWidgets.QPushButton("Version installieren"); self.fw_install_button.setEnabled(False); self.fw_install_button.clicked.connect(self._install_selected_version)
-        self.fw_version_combo = QtWidgets.QComboBox(); self.fw_version_combo.addItem("Version wählen …"); self.fw_version_combo.setEnabled(False); self.fw_version_combo.currentIndexChanged.connect(self._firmware_selection_changed)
-        action_row.addWidget(self.fw_install_button, 3); action_row.addWidget(self.fw_version_combo, 2); left_layout.addLayout(action_row)
+
         right = QtWidgets.QFrame(); right.setObjectName("section"); right_layout = QtWidgets.QVBoxLayout(right); right_layout.setContentsMargins(10, 7, 10, 7); right_layout.setSpacing(6)
         heading = QtWidgets.QLabel("Hinweise"); heading.setStyleSheet("font-size:17px;font-weight:bold"); right_layout.addWidget(heading)
         info = QtWidgets.QLabel("Stable = veröffentlichte Releases. Main = aktueller Hauptstand. TEST = Entwicklungszweige feature/*.\n\nDas Repository kann links geändert werden. Installiert werden aus Sicherheitsgründen nur Versionen aus alexseuf/dab-touchscreen.\n\nVor der Installation wird der exakte Commit geprüft und ein Backup erstellt. Danach folgen Installation, Health-Check und Neustart.\n\nSchlägt ein Schritt fehl, wird automatisch die vorherige Installation wiederhergestellt.")
