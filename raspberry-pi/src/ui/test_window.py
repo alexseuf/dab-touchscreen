@@ -13,13 +13,20 @@ from src.ui.firmware_window import FirmwareMainWindow
 class TestMainWindow(FirmwareMainWindow):
     """Incremental test UI additions kept isolated from the stable window."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Squeekboard's dedicated ↓ key emits F12. Install this window as an
+        # application-wide event filter so the key works independently of
+        # which QLineEdit/child widget currently owns keyboard focus.
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self)
+
     def _lan(self):
         root = super()._lan()
         layout = root.layout()
         if isinstance(layout, QtWidgets.QBoxLayout):
             layout.setDirection(QtWidgets.QBoxLayout.TopToBottom)
-            # Split the available LAN page vertically: roughly two thirds for
-            # Ethernet/IPv4 and one third for the local MQTT broker.
             layout.setStretch(0, 2)
             layout.setStretch(1, 1)
 
@@ -65,10 +72,6 @@ class TestMainWindow(FirmwareMainWindow):
                 form.setRowMinimumHeight(row, 36)
                 form.setRowStretch(row, 0)
             form.setRowStretch(5, 1)
-
-            # Let the outer 2:1 split control the frame height. This restores
-            # enough room above the MQTT section while keeping the aligned
-            # IPv4 fields and right-side controls unchanged.
             ethernet.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
             ethernet.setMaximumHeight(16777215)
 
@@ -119,6 +122,11 @@ class TestMainWindow(FirmwareMainWindow):
             self._hide_touch_keyboard()
 
     def eventFilter(self, obj, event):
+        # Dedicated Squeekboard ↓ key. Catch it application-wide, not only on
+        # a specific input widget, then use the already proven D-Bus hide path.
+        if event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_F12:
+            self._hide_touch_keyboard()
+            return True
         editable = obj in getattr(self, "lan_fields", ()) or obj is getattr(self, "wifi_password", None)
         if editable and event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_Escape:
             self._hide_touch_keyboard()
