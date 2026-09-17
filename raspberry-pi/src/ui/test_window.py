@@ -117,7 +117,6 @@ class TestMainWindow(FirmwareMainWindow):
             reset.setMinimumHeight(44)
             reset.setToolTip("DAB-Anwendungseinstellungen zurücksetzen; LAN und WLAN bleiben erhalten")
             reset.clicked.connect(self._confirm_factory_reset)
-            # Insert directly above restart/shutdown actions.
             outer.insertWidget(max(0, outer.count() - 1), reset)
         return root
 
@@ -131,15 +130,13 @@ class TestMainWindow(FirmwareMainWindow):
         )
         if answer != QtWidgets.QMessageBox.Yes:
             return
-        # Preserve network configuration: NetworkManager profiles are not
-        # touched. Only application-owned QSettings are reset.
+        # Only application-owned QSettings are reset. NetworkManager profiles
+        # remain untouched so LAN/WLAN connectivity is preserved.
         self._settings.clear()
         self._settings.sync()
-        default_demo = bool(self.config["app"].get("demo_data", True))
-        # The shipped default is the value from config/app.yaml.  Since the
-        # current config may have been overridden from QSettings at startup,
-        # use the project default (Demo=true) after reset.
-        default_demo = True
+        # config/app.yaml ships with demo_data: false, so factory state is
+        # live MQTT mode rather than generated demo data.
+        default_demo = False
         self.config["app"]["demo_data"] = default_demo
         self._show_data_mode(default_demo)
         self.data_mode_changed.emit(default_demo)
@@ -149,26 +146,20 @@ class TestMainWindow(FirmwareMainWindow):
         QtWidgets.QMessageBox.information(
             self,
             "Werkseinstellungen",
-            "DAB-Anwendungseinstellungen wurden zurückgesetzt.\nLAN und WLAN wurden nicht verändert.",
+            "DAB-Anwendungseinstellungen wurden zurückgesetzt.\nLAN und WLAN wurden nicht verändert.\nDatenquelle: Live / MQTT.",
         )
 
     def _mqtt_page(self):
         root = QtWidgets.QWidget(); grid = QtWidgets.QGridLayout(root); grid.setContentsMargins(8, 7, 8, 7); grid.setHorizontalSpacing(8); grid.setVerticalSpacing(5)
-
         left_frame = QtWidgets.QFrame(); left_frame.setObjectName("section"); left = QtWidgets.QVBoxLayout(left_frame); left.setContentsMargins(8, 7, 8, 8); left.setSpacing(2)
         left_title = QtWidgets.QLabel("Topics"); left_title.setStyleSheet("font-size:18px;font-weight:bold"); left.addWidget(left_title)
         self.topics = QtWidgets.QTreeWidget(); self.topics.setHeaderHidden(True); self.topics.setItemsExpandable(False); self.topics.setExpandsOnDoubleClick(False)
         self.topics.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn); self.topics.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         self.topics.itemClicked.connect(self._topic_clicked); self.topics.itemSelectionChanged.connect(self._topic_selected); left.addWidget(self.topics, 1)
-
-        # Filter controls stay above the right message pane. This lets the
-        # Topics pane start immediately below its heading instead of wasting
-        # the toolbar-height as empty space on the left.
         toolbar = QtWidgets.QHBoxLayout(); toolbar.setSpacing(5)
         self.filter = QtWidgets.QLineEdit(); self.filter.setPlaceholderText("Topic filtern …"); self.filter.textChanged.connect(self._rebuild_topics); self.filter.returnPressed.connect(self._hide_touch_keyboard); self.filter.installEventFilter(self)
         clear = QtWidgets.QPushButton("Liste leeren"); clear.setToolTip("Aktuelle Explorer-Liste leeren; neue MQTT-Nachrichten werden danach wieder angezeigt"); clear.clicked.connect(self._clear_mqtt_explorer)
         self.filter.setMinimumWidth(230); clear.setMinimumWidth(135); toolbar.addWidget(self.filter, 1); toolbar.addWidget(clear)
-
         right_frame = QtWidgets.QFrame(); right_frame.setObjectName("section"); right = QtWidgets.QVBoxLayout(right_frame); right.setContentsMargins(12, 7, 12, 9); right.setSpacing(5)
         right_title = QtWidgets.QLabel("Nachricht"); right_title.setStyleSheet("font-size:18px;font-weight:bold"); right.addWidget(right_title)
         topic_label = QtWidgets.QLabel("Topic"); topic_label.setStyleSheet("color:#9edcff"); right.addWidget(topic_label)
@@ -179,10 +170,7 @@ class TestMainWindow(FirmwareMainWindow):
         meta.addWidget(self.mqtt_qos_value); meta.addWidget(self.mqtt_retain_value); meta.addStretch(1); meta.addWidget(self.mqtt_time_value); right.addLayout(meta)
         raw_label = QtWidgets.QLabel("Rohansicht"); raw_label.setStyleSheet("color:#9edcff"); right.addWidget(raw_label)
         self.detail = QtWidgets.QPlainTextEdit(); self.detail.setReadOnly(True); self.detail.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn); self.detail.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded); right.addWidget(self.detail, 1)
-
-        grid.addWidget(left_frame, 0, 0, 2, 1)
-        grid.addLayout(toolbar, 0, 1)
-        grid.addWidget(right_frame, 1, 1)
+        grid.addWidget(left_frame, 0, 0, 2, 1); grid.addLayout(toolbar, 0, 1); grid.addWidget(right_frame, 1, 1)
         grid.setColumnStretch(0, 1); grid.setColumnStretch(1, 1); grid.setRowStretch(0, 0); grid.setRowStretch(1, 1)
         return root
 
