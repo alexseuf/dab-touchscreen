@@ -24,90 +24,53 @@ class TestMainWindow(FirmwareMainWindow):
         root = super()._lan()
         layout = root.layout()
         if isinstance(layout, QtWidgets.QBoxLayout):
-            layout.setDirection(QtWidgets.QBoxLayout.TopToBottom)
-            layout.setStretch(0, 2)
-            layout.setStretch(1, 1)
-
-        ethernet = self.lan_dhcp.parentWidget()
-        form = ethernet.layout() if ethernet is not None else None
+            layout.setDirection(QtWidgets.QBoxLayout.TopToBottom); layout.setStretch(0, 2); layout.setStretch(1, 1)
+        ethernet = self.lan_dhcp.parentWidget(); form = ethernet.layout() if ethernet is not None else None
         if isinstance(form, QtWidgets.QGridLayout):
-            form.setContentsMargins(7, 2, 7, 2)
-            form.setHorizontalSpacing(6)
-            form.setVerticalSpacing(1)
-            title = next((label for label in ethernet.findChildren(QtWidgets.QLabel)
-                          if label.text() == "Ethernet / IPv4"), None)
+            form.setContentsMargins(7, 2, 7, 2); form.setHorizontalSpacing(6); form.setVerticalSpacing(1)
+            title = next((label for label in ethernet.findChildren(QtWidgets.QLabel) if label.text() == "Ethernet / IPv4"), None)
             labels = {label.text(): label for label in ethernet.findChildren(QtWidgets.QLabel)}
-            if title is not None:
-                title.setStyleSheet("font-size:17px;font-weight:bold")
-                form.addWidget(title, 0, 0, 1, 2)
-            form.addWidget(self.lan_dhcp, 0, 2)
-            form.addWidget(self.lan_static, 0, 3)
-            rows = [("IP-Adresse", self.lan_address), ("Prefix", self.lan_prefix),
-                    ("Gateway", self.lan_gateway), ("DNS-Server", self.lan_dns)]
-            for row, (name, field) in enumerate(rows, 1):
+            if title is not None: title.setStyleSheet("font-size:17px;font-weight:bold"); form.addWidget(title, 0, 0, 1, 2)
+            form.addWidget(self.lan_dhcp, 0, 2); form.addWidget(self.lan_static, 0, 3)
+            for row, (name, field) in enumerate([("IP-Adresse", self.lan_address), ("Prefix", self.lan_prefix), ("Gateway", self.lan_gateway), ("DNS-Server", self.lan_dns)], 1):
                 label = labels.get(name)
-                if label is not None:
-                    form.addWidget(label, row, 0, alignment=QtCore.Qt.AlignVCenter)
-                form.addWidget(field, row, 1, alignment=QtCore.Qt.AlignVCenter)
-                field.setFixedHeight(36)
-            form.addWidget(self.lan_refresh_button, 1, 2, 1, 2, alignment=QtCore.Qt.AlignTop)
-            form.addWidget(self.lan_apply_button, 2, 2, 1, 2, alignment=QtCore.Qt.AlignTop)
-            self.lan_refresh_button.setFixedHeight(34)
-            self.lan_apply_button.setFixedHeight(34)
-            form.addWidget(self.lan_result, 3, 2, 2, 2, alignment=QtCore.Qt.AlignTop)
-            form.setColumnStretch(0, 2); form.setColumnStretch(1, 5)
-            form.setColumnStretch(2, 2); form.setColumnStretch(3, 2)
-            form.setRowMinimumHeight(0, 28)
-            for row in range(1, 5):
-                form.setRowMinimumHeight(row, 36); form.setRowStretch(row, 0)
-            form.setRowStretch(5, 1)
-            ethernet.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
-            ethernet.setMaximumHeight(16777215)
-
+                if label is not None: form.addWidget(label, row, 0, alignment=QtCore.Qt.AlignVCenter)
+                form.addWidget(field, row, 1, alignment=QtCore.Qt.AlignVCenter); field.setFixedHeight(36)
+            form.addWidget(self.lan_refresh_button, 1, 2, 1, 2, alignment=QtCore.Qt.AlignTop); form.addWidget(self.lan_apply_button, 2, 2, 1, 2, alignment=QtCore.Qt.AlignTop)
+            self.lan_refresh_button.setFixedHeight(34); self.lan_apply_button.setFixedHeight(34); form.addWidget(self.lan_result, 3, 2, 2, 2, alignment=QtCore.Qt.AlignTop)
+            form.setColumnStretch(0, 2); form.setColumnStretch(1, 5); form.setColumnStretch(2, 2); form.setColumnStretch(3, 2); form.setRowMinimumHeight(0, 28)
+            for row in range(1, 5): form.setRowMinimumHeight(row, 36); form.setRowStretch(row, 0)
+            form.setRowStretch(5, 1); ethernet.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding); ethernet.setMaximumHeight(16777215)
         self.lan_prefix.setPlaceholderText("255.255.255.0")
         for label in root.findChildren(QtWidgets.QLabel):
-            if label.text() == "Prefix":
-                label.setText("Subnetzmaske"); break
-
-        mqtt_frame = self.lan_mqtt_status.parentWidget()
-        mqtt_layout = mqtt_frame.layout() if mqtt_frame is not None else None
+            if label.text() == "Prefix": label.setText("Subnetzmaske"); break
+        mqtt_frame = self.lan_mqtt_status.parentWidget(); mqtt_layout = mqtt_frame.layout() if mqtt_frame is not None else None
         if isinstance(mqtt_layout, QtWidgets.QVBoxLayout):
             for index in reversed(range(mqtt_layout.count())):
-                item = mqtt_layout.itemAt(index); widget = item.widget()
-                if widget is not None and widget is not self.lan_mqtt_status:
-                    mqtt_layout.removeWidget(widget); widget.hide()
+                widget = mqtt_layout.itemAt(index).widget()
+                if widget is not None and widget is not self.lan_mqtt_status: mqtt_layout.removeWidget(widget); widget.hide()
             mqtt_layout.setContentsMargins(10, 5, 10, 5); mqtt_layout.setSpacing(3)
-            title = QtWidgets.QLabel("Lokaler MQTT-Broker")
-            title.setStyleSheet("font-size:16px;font-weight:bold"); mqtt_layout.insertWidget(0, title)
-            self.lan_mqtt_status.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
-            self.lan_mqtt_status.setWordWrap(True); self.lan_mqtt_status.setMinimumHeight(82); self.lan_mqtt_status.setMaximumHeight(110)
-            hint = QtWidgets.QLabel("LAN wird als Broker-Adresse bevorzugt. WLAN bleibt als Recovery-Zugang verfügbar.")
-            hint.setWordWrap(True); hint.setStyleSheet("color:#9edcff;font-size:12px")
-            mqtt_layout.addWidget(hint); mqtt_layout.addStretch(1)
+            title = QtWidgets.QLabel("Lokaler MQTT-Broker"); title.setStyleSheet("font-size:16px;font-weight:bold"); mqtt_layout.insertWidget(0, title)
+            self.lan_mqtt_status.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft); self.lan_mqtt_status.setWordWrap(True); self.lan_mqtt_status.setMinimumHeight(82); self.lan_mqtt_status.setMaximumHeight(110)
+            hint = QtWidgets.QLabel("LAN wird als Broker-Adresse bevorzugt. WLAN bleibt als Recovery-Zugang verfügbar."); hint.setWordWrap(True); hint.setStyleSheet("color:#9edcff;font-size:12px"); mqtt_layout.addWidget(hint); mqtt_layout.addStretch(1)
         self._lan_mode_changed(); return root
 
     def _lan_mode_changed(self):
         manual = self.lan_static.isChecked()
         for field in self.lan_fields:
-            field.setEnabled(manual); field.setReadOnly(not manual)
-            field.setFocusPolicy(QtCore.Qt.StrongFocus if manual else QtCore.Qt.NoFocus)
+            field.setEnabled(manual); field.setReadOnly(not manual); field.setFocusPolicy(QtCore.Qt.StrongFocus if manual else QtCore.Qt.NoFocus)
             if not manual: field.clearFocus()
         if not manual: self._hide_touch_keyboard()
 
     def eventFilter(self, obj, event):
-        if event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_F12:
-            self._hide_touch_keyboard(); return True
+        if event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_F12: self._hide_touch_keyboard(); return True
         editable = obj in getattr(self, "lan_fields", ()) or obj is getattr(self, "wifi_password", None) or obj is getattr(self, "filter", None)
-        if editable and event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_Escape:
-            self._hide_touch_keyboard(); return True
+        if editable and event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_Escape: self._hide_touch_keyboard(); return True
         if obj is getattr(self, "filter", None) and event.type() == QtCore.QEvent.MouseButtonPress:
-            obj.setFocus(QtCore.Qt.MouseFocusReason); obj.deselect(); obj.setCursorPosition(obj.cursorPositionAt(event.pos()))
-            QtCore.QTimer.singleShot(0, lambda field=obj: self._show_touch_keyboard(field)); return True
+            obj.setFocus(QtCore.Qt.MouseFocusReason); obj.deselect(); obj.setCursorPosition(obj.cursorPositionAt(event.pos())); QtCore.QTimer.singleShot(0, lambda field=obj: self._show_touch_keyboard(field)); return True
         if obj in getattr(self, "lan_fields", ()) and event.type() == QtCore.QEvent.MouseButtonPress:
-            if getattr(self, "lan_dhcp", None) is not None and self.lan_dhcp.isChecked():
-                obj.clearFocus(); self._hide_touch_keyboard(); return True
-            obj.setFocus(QtCore.Qt.MouseFocusReason); obj.deselect(); obj.setCursorPosition(obj.cursorPositionAt(event.pos()))
-            QtCore.QTimer.singleShot(0, lambda field=obj: self._show_touch_keyboard(field)); return True
+            if getattr(self, "lan_dhcp", None) is not None and self.lan_dhcp.isChecked(): obj.clearFocus(); self._hide_touch_keyboard(); return True
+            obj.setFocus(QtCore.Qt.MouseFocusReason); obj.deselect(); obj.setCursorPosition(obj.cursorPositionAt(event.pos())); QtCore.QTimer.singleShot(0, lambda field=obj: self._show_touch_keyboard(field)); return True
         return super().eventFilter(obj, event)
 
     @staticmethod
@@ -123,12 +86,10 @@ class TestMainWindow(FirmwareMainWindow):
         except (ValueError, TypeError): return value
 
     def _network_refreshed(self, status):
-        shown = dict(status); shown["prefix"] = self._prefix_to_netmask(status.get("prefix", "24"))
-        super()._network_refreshed(shown); self._update_compact_broker_status()
+        shown = dict(status); shown["prefix"] = self._prefix_to_netmask(status.get("prefix", "24")); super()._network_refreshed(shown); self._update_compact_broker_status()
 
     def _update_compact_broker_status(self):
-        broker = broker_status(); color = "#34d26b" if broker["running"] else "#e63946"; state = "Läuft" if broker["running"] else "Nicht erreichbar"
-        self._broker_host = str(broker["host"])
+        broker = broker_status(); color = "#34d26b" if broker["running"] else "#e63946"; state = "Läuft" if broker["running"] else "Nicht erreichbar"; self._broker_host = str(broker["host"])
         self.lan_mqtt_status.setText(f"<span style='color:{color};font-size:20px'>●</span> <b>{state}</b>&nbsp;&nbsp;&nbsp; <b>Broker-Adresse:</b> mqtt://{html.escape(self._broker_host)}&nbsp;&nbsp;&nbsp; <b>Port:</b> {broker['port']}<br><b>Bevorzugter Netzwerkweg:</b> {html.escape(str(broker['preferred']))}<br><b>Erreichbar über:</b> {html.escape(str(broker['preferred']))} · {html.escape(self._broker_host)}:{broker['port']}")
 
     def _apply_lan(self):
@@ -137,36 +98,34 @@ class TestMainWindow(FirmwareMainWindow):
         finally: self.lan_prefix.setText(shown_mask)
 
     def _mqtt_page(self):
-        root = QtWidgets.QWidget(); layout = QtWidgets.QHBoxLayout(root)
-        layout.setContentsMargins(8, 7, 8, 7); layout.setSpacing(8)
+        root = QtWidgets.QWidget(); outer = QtWidgets.QVBoxLayout(root); outer.setContentsMargins(8, 7, 8, 7); outer.setSpacing(5)
 
-        left_frame = QtWidgets.QFrame(); left_frame.setObjectName("section")
-        left = QtWidgets.QVBoxLayout(left_frame); left.setContentsMargins(8, 7, 8, 8); left.setSpacing(5)
-        left_title = QtWidgets.QLabel("Topics"); left_title.setStyleSheet("font-size:18px;font-weight:bold"); left.addWidget(left_title)
-        self.topics = QtWidgets.QTreeWidget(); self.topics.setHeaderHidden(True); self.topics.setItemsExpandable(False); self.topics.setExpandsOnDoubleClick(False)
-        self.topics.itemClicked.connect(self._topic_clicked); self.topics.itemSelectionChanged.connect(self._topic_selected)
-        left.addWidget(self.topics, 1)
-        toolbar = QtWidgets.QHBoxLayout(); toolbar.setSpacing(5)
+        # Keep the filter visible above the message/tree area while Squeekboard is open.
+        toolbar = QtWidgets.QHBoxLayout(); toolbar.setSpacing(5); toolbar.addStretch(1)
         self.filter = QtWidgets.QLineEdit(); self.filter.setPlaceholderText("Topic filtern …"); self.filter.textChanged.connect(self._rebuild_topics); self.filter.returnPressed.connect(self._hide_touch_keyboard); self.filter.installEventFilter(self)
         clear = QtWidgets.QPushButton("Liste leeren"); clear.setToolTip("Aktuelle Explorer-Liste leeren; neue MQTT-Nachrichten werden danach wieder angezeigt"); clear.clicked.connect(self._clear_mqtt_explorer)
-        toolbar.addWidget(self.filter, 3); toolbar.addWidget(clear, 2); left.addLayout(toolbar)
+        self.filter.setMinimumWidth(230); clear.setMinimumWidth(135)
+        toolbar.addWidget(self.filter); toolbar.addWidget(clear); outer.addLayout(toolbar)
 
-        right_frame = QtWidgets.QFrame(); right_frame.setObjectName("section")
-        right = QtWidgets.QVBoxLayout(right_frame); right.setContentsMargins(12, 7, 12, 9); right.setSpacing(5)
+        columns = QtWidgets.QHBoxLayout(); columns.setSpacing(8)
+        left_frame = QtWidgets.QFrame(); left_frame.setObjectName("section"); left = QtWidgets.QVBoxLayout(left_frame); left.setContentsMargins(8, 7, 8, 8); left.setSpacing(5)
+        left_title = QtWidgets.QLabel("Topics"); left_title.setStyleSheet("font-size:18px;font-weight:bold"); left.addWidget(left_title)
+        self.topics = QtWidgets.QTreeWidget(); self.topics.setHeaderHidden(True); self.topics.setItemsExpandable(False); self.topics.setExpandsOnDoubleClick(False)
+        self.topics.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn); self.topics.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.topics.itemClicked.connect(self._topic_clicked); self.topics.itemSelectionChanged.connect(self._topic_selected); left.addWidget(self.topics, 1)
+
+        right_frame = QtWidgets.QFrame(); right_frame.setObjectName("section"); right = QtWidgets.QVBoxLayout(right_frame); right.setContentsMargins(12, 7, 12, 9); right.setSpacing(5)
         right_title = QtWidgets.QLabel("Nachricht"); right_title.setStyleSheet("font-size:18px;font-weight:bold"); right.addWidget(right_title)
         topic_label = QtWidgets.QLabel("Topic"); topic_label.setStyleSheet("color:#9edcff"); right.addWidget(topic_label)
         self.mqtt_topic_value = QtWidgets.QLineEdit(); self.mqtt_topic_value.setReadOnly(True); self.mqtt_topic_value.setFocusPolicy(QtCore.Qt.NoFocus); right.addWidget(self.mqtt_topic_value)
         payload_label = QtWidgets.QLabel("Payload"); payload_label.setStyleSheet("color:#9edcff"); right.addWidget(payload_label)
         self.mqtt_payload_value = QtWidgets.QLineEdit(); self.mqtt_payload_value.setReadOnly(True); self.mqtt_payload_value.setFocusPolicy(QtCore.Qt.NoFocus); self.mqtt_payload_value.setMinimumHeight(42); right.addWidget(self.mqtt_payload_value)
-        meta = QtWidgets.QHBoxLayout(); meta.setSpacing(12)
-        self.mqtt_qos_value = QtWidgets.QLabel("QoS: —"); self.mqtt_retain_value = QtWidgets.QLabel("Retained: —"); self.mqtt_time_value = QtWidgets.QLabel("—")
+        meta = QtWidgets.QHBoxLayout(); meta.setSpacing(12); self.mqtt_qos_value = QtWidgets.QLabel("QoS: —"); self.mqtt_retain_value = QtWidgets.QLabel("Retained: —"); self.mqtt_time_value = QtWidgets.QLabel("—")
         meta.addWidget(self.mqtt_qos_value); meta.addWidget(self.mqtt_retain_value); meta.addStretch(1); meta.addWidget(self.mqtt_time_value); right.addLayout(meta)
         raw_label = QtWidgets.QLabel("Rohansicht"); raw_label.setStyleSheet("color:#9edcff"); right.addWidget(raw_label)
-        self.detail = QtWidgets.QPlainTextEdit(); self.detail.setReadOnly(True); right.addWidget(self.detail, 1)
+        self.detail = QtWidgets.QPlainTextEdit(); self.detail.setReadOnly(True); self.detail.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn); self.detail.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded); right.addWidget(self.detail, 1)
 
-        # Both panes carry topic information, so give them exactly the same share.
-        layout.addWidget(left_frame, 1); layout.addWidget(right_frame, 1)
-        return root
+        columns.addWidget(left_frame, 1); columns.addWidget(right_frame, 1); outer.addLayout(columns, 1); return root
 
     def _clear_mqtt_explorer(self):
         self.explorer.clear(); self.topics.clear(); self.detail.clear()
@@ -178,12 +137,8 @@ class TestMainWindow(FirmwareMainWindow):
         if not items: return
         topic = items[0].data(0, QtCore.Qt.UserRole)
         if topic not in self.explorer: return
-        message = self.explorer[topic]
-        self.mqtt_topic_value.setText(message.topic); self.mqtt_payload_value.setText(message.payload)
-        self.mqtt_qos_value.setText(f"QoS: {message.qos}"); self.mqtt_retain_value.setText(f"Retained: {'true' if message.retain else 'false'}")
-        self.mqtt_time_value.setText(time.strftime("%H:%M:%S", time.localtime(message.received_at)))
-        raw = json.dumps(message.parsed, indent=2, ensure_ascii=False) if message.parsed is not None else message.payload
-        self.detail.setPlainText(raw)
+        message = self.explorer[topic]; self.mqtt_topic_value.setText(message.topic); self.mqtt_payload_value.setText(message.payload); self.mqtt_qos_value.setText(f"QoS: {message.qos}"); self.mqtt_retain_value.setText(f"Retained: {'true' if message.retain else 'false'}"); self.mqtt_time_value.setText(time.strftime("%H:%M:%S", time.localtime(message.received_at)))
+        self.detail.setPlainText(json.dumps(message.parsed, indent=2, ensure_ascii=False) if message.parsed is not None else message.payload)
 
     def _refresh(self):
         for sid, card in self.cards.items(): card.set_value(self.model.get(sid))
@@ -192,7 +147,6 @@ class TestMainWindow(FirmwareMainWindow):
         connected = bool(self.mqtt and self.mqtt.connected)
         if connected:
             host = getattr(self, "_broker_host", "")
-            if not host:
-                host = str(broker_status()["host"]); self._broker_host = host
+            if not host: host = str(broker_status()["host"]); self._broker_host = host
             self.status.setText(f"MQTT: verbunden {host}   {time.strftime('%H:%M:%S')}")
         else: self.status.setText(f"MQTT: nicht verbunden   {time.strftime('%H:%M:%S')}")
