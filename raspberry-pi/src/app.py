@@ -6,7 +6,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from src.data.model import DataModel
 from src.data.history import HistoryStore
 from src.mqtt.client import MqttService
-from src.ui.firmware_window import FirmwareMainWindow
+from src.ui.test_window import TestMainWindow
 
 ROOT=Path(__file__).resolve().parents[1]
 def load_yaml(name):
@@ -28,12 +28,11 @@ def run(fullscreen=None):
     try:history=HistoryStore()
     except (OSError,sqlite3.Error):history=HistoryStore('/tmp/dab-touchscreen-history.sqlite3')
     app=QtWidgets.QApplication(sys.argv);app.setApplicationName('DAB Touchscreen')
-    app.setFont(QtGui.QFont('DejaVu Sans',14));window=FirmwareMainWindow(model,cfg,history)
+    app.setFont(QtGui.QFont('DejaVu Sans',14));window=TestMainWindow(model,cfg,history)
     mqtt=MqttService(cfg['mqtt']['host'],cfg['mqtt']['port'],model,window.explorer_event.emit,os.environ.get('DAB_MQTT_USERNAME'),os.environ.get('DAB_MQTT_PASSWORD'));window.set_mqtt(mqtt);mqtt.start()
     demo=DemoPublisher(model,bool(cfg['app'].get('demo_data',True)));window.data_mode_changed.connect(demo.set_enabled)
     use_fullscreen=fullscreen if fullscreen is not None else cfg['app'].get('fullscreen',True)
-    if os.environ.get('XDG_SESSION_TYPE')=='wayland' or os.environ.get('WAYLAND_DISPLAY'):
-        window.showMaximized()
+    if os.environ.get('XDG_SESSION_TYPE')=='wayland' or os.environ.get('WAYLAND_DISPLAY'):window.showMaximized()
     elif use_fullscreen:window.showFullScreen()
     else:window.show()
     rc=app.exec_();mqtt.stop();return rc
