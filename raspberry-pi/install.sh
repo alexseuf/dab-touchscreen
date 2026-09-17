@@ -74,13 +74,6 @@ install -o root -g root -m 0644 "$ROOT_DIR/system/40-dab-touchscreen-rotate.conf
 install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-networkmanager.rules" /etc/polkit-1/rules.d/49-dab-networkmanager.rules
 install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-firmware-update.rules" /etc/polkit-1/rules.d/49-dab-firmware-update.rules
 
-# Install the DAB German Squeekboard layouts. The TEST branch keeps the normal
-# key count but uses larger outlines to make better use of the 800 px width.
-install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 "/home/$SERVICE_USER/.local/share/squeekboard/keyboards"
-for layout in de.yaml de_wide.yaml; do
-    install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0644 "$ROOT_DIR/system/squeekboard/$layout" "/home/$SERVICE_USER/.local/share/squeekboard/keyboards/$layout"
-done
-
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 "/home/$SERVICE_USER/.config"
 cat >"/home/$SERVICE_USER/.config/labwc-autostart-notifications-disabled" <<'EOF'
 # DAB kiosk marker: desktop notification bubbles intentionally disabled.
@@ -96,6 +89,10 @@ Hidden=true
 EOF
  chown "$SERVICE_USER:$SERVICE_USER" "/home/$SERVICE_USER/.config/autostart/$desktop"
 done
+
+# Configure system Squeekboard layouts and WayVNC while running as root. The
+# graphical clients themselves are started only after LightDM creates Wayland.
+"$INSTALL_DIR/scripts/configure-touch-desktop.sh" "$SERVICE_USER"
 
 python3 -m compileall -q "$INSTALL_DIR/src" "$INSTALL_DIR/scripts"
 (cd "$INSTALL_DIR"; PYTHONPATH="$INSTALL_DIR${PYTHONPATH:+:$PYTHONPATH}" python3 -m unittest discover -s tests -v)
