@@ -44,6 +44,34 @@ Topic-Baum und MQTT-Nachrichten einschließlich Payload, Zeitstempel, QoS und Re
 
 **System:** CPU-Auslastung, Arbeitsspeicher, CPU-Temperatur, Datenträgerbelegung, Laufzeit, Hostname, Betriebssystem und aktive IP-Adressen. Neustart und Ausschalten nur nach Sicherheitsabfrage.
 
+## Echtzeituhr (RTC)
+
+Für eine korrekte Uhrzeit auch ohne Netzwerk/NTP wird eine batteriegepufferte **DS3231 RTC** am I²C-Bus empfohlen. Die Firmware aktiviert I²C dauerhaft und bindet die RTC beim Start ein. Damit stehen korrekte Zeitstempel für MQTT, Verläufe und Systemprotokolle auch nach einem netzlosen Neustart zur Verfügung.
+
+### Anschluss am Raspberry Pi 4
+
+| DS3231 | Kabelfarbe | Raspberry Pi 4 |
+|---|---|---|
+| VCC | Rot | **Pin 1 – 3,3 V** |
+| SDA | Grün | **Pin 3 – GPIO2 / SDA1** |
+| SCL | Violett | **Pin 5 – GPIO3 / SCL1** |
+| GND | Schwarz | **Pin 6 – GND** |
+
+`32K` und `SQW` bleiben unbeschaltet. Das RTC-Modul wird mit **3,3 V** betrieben; die 5-V-Pins 2 und 4 werden hierfür nicht verwendet.
+
+![Raspberry Pi 4 – DS3231 RTC Pinbelegung](docs/images/raspberry-pi-rtc-pinout.svg)
+
+Nach Installation bzw. Firmwareupdate einmal neu starten. Anschließend lässt sich die Hardware prüfen mit:
+
+```bash
+ls -l /dev/i2c-1
+sudo i2cdetect -y 1
+ls -l /dev/rtc*
+sudo hwclock --show
+```
+
+Beim I²C-Scan muss der DS3231 unter **Adresse `0x68`** erscheinen. Bei Modulen mit zusätzlichem EEPROM kann außerdem **`0x57`** sichtbar sein.
+
 ## UI-Technik
 
 Empfohlene/reale Zielarchitektur: Python mit PySide6 oder PyQt6; PyQtGraph für Verläufe. Styling über QSS. Die SVG-Dateien in `docs/images/` sind Design-Mock-ups und keine Screenshots eines anderen Frameworks. Deshalb können sie glatter/eleganter wirken als die derzeitige reale GUI. Ziel ist, die reale Qt-Oberfläche optisch an die Mock-ups anzunähern, ohne Seiteninhalte zu verändern.
