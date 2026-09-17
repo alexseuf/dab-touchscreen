@@ -6,7 +6,7 @@ Touch-HMI für Raspberry Pi 4 mit offiziellem 7-Zoll-Raspberry-Pi-Touchdisplay. 
 
 ### Hardware-Teststatus WLAN/Firmware
 
-Auf Raspberry Pi 4 mit NetworkManager getestet: Die gewählte Firmware-Branch bleibt über Updates gespeichert, WLAN kann nach manuellem Trennen über das gespeicherte NetworkManager-Profil ohne erneute Passworteingabe verbunden werden, und der WLAN-Hauptschalter funktioniert. Die Wiederherstellung des ausgeschalteten WLAN-Hauptschalters über ein Firmware-Update wird separat validiert.
+Auf Raspberry Pi 4 mit NetworkManager getestet: Die gewählte Firmware-Branch bleibt über Updates gespeichert, WLAN kann nach manuellem Trennen über das gespeicherte NetworkManager-Profil ohne erneute Passworteingabe verbunden werden, und der WLAN-Hauptschalter funktioniert. Die Wiederherstellung des ausgeschalteten WLAN-Hauptschalters über ein Firmware-Update wird separat validiert (Testlauf vorbereitet).
 
 ## Hauptnavigation
 
