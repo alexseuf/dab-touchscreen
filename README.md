@@ -6,7 +6,7 @@ Touch-HMI für Raspberry Pi 4 mit offiziellem 7-Zoll-Raspberry-Pi-Touchdisplay. 
 
 ### Hardware-Teststatus WLAN/Firmware
 
-Auf Raspberry Pi 4 mit NetworkManager getestet: Die gewählte Firmware-Branch bleibt über Updates gespeichert, WLAN kann nach manuellem Trennen über das gespeicherte NetworkManager-Profil ohne erneute Passworteingabe verbunden werden, und der WLAN-Hauptschalter funktioniert. Die Wiederherstellung des ausgeschalteten WLAN-Hauptschalters über ein Firmware-Update wird separat validiert (Testlauf vorbereitet).
+Auf Raspberry Pi 4 mit NetworkManager getestet: Die gewählte Firmware-Branch bleibt über Updates gespeichert, WLAN kann nach manuellem Trennen über das gespeicherte NetworkManager-Profil ohne erneute Passworteingabe verbunden werden, und der WLAN-Hauptschalter funktioniert. Auch die Wiederherstellung des ausgeschalteten WLAN-Hauptschalters über ein Firmware-Update wurde auf der Zielhardware erfolgreich validiert. Beim Laden der Werkseinstellungen bleiben LAN-/WLAN-Konfiguration und der aktuelle WLAN-Hauptschalterzustand unverändert; zurückgesetzt werden nur anwendungseigene Einstellungen.
 
 ## Hauptnavigation
 
@@ -119,10 +119,7 @@ cd ~/dab-touchscreen && git pull --ff-only origin main && sudo ./raspberry-pi/up
 
 `update.sh` überspringt die Installation von Systempaketen. Weist eine Version
 neue oder geänderte Paketabhängigkeiten aus, ist stattdessen
-`sudo ./raspberry-pi/install.sh` auszuführen. Die bestehende Trennung von
-Repository, lokalen Secrets und Laufzeitdaten bleibt als Grundlage für einen
-späteren versionsbewussten Firmware-Updater mit Sicherung und Rollback erhalten;
-ein solches Menü wird in diesem Pull Request noch nicht implementiert.
+`sudo ./raspberry-pi/install.sh` auszuführen. Der integrierte versionsbewusste Firmware-Updater unterstützt Main- und TEST-Branch, merkt sich die gewählte Branch, sichert Netzwerkzustände und führt bei Fehlern ein Rollback aus. Der WLAN-Hauptschalterzustand wird über Firmware-Updates hinweg erhalten. Die Trennung von Repository, lokalen Secrets und Laufzeitdaten bleibt dabei bestehen.
 
 Echte Laufzeitdaten und Zugangsdaten bleiben lokal und werden durch die
 Ignore-Regeln ausgeschlossen. Historische, inzwischen abgelöste
