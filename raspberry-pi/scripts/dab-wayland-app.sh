@@ -16,6 +16,11 @@ if [ -r /etc/dab-touchscreen/env ]; then
     set +a
 fi
 
+# TEST touch behaviour: use Raspberry Pi OS' native wf-panel-pi + wfplug-squeek
+# control and remove the old DAB Squeekboard override. This makes the stock
+# keyboard wider and exposes the native keyboard show/hide icon in the panel.
+/opt/dab-touchscreen/scripts/configure-touch-desktop.sh "$(id -un)" || true
+
 sleep 2
 if command -v wlr-randr >/dev/null 2>&1; then
     wlr-randr | awk '/^[^[:space:]]/{print $1}' | while read -r output; do
