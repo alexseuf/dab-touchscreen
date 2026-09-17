@@ -44,6 +44,23 @@ Topic-Baum und MQTT-Nachrichten einschließlich Payload, Zeitstempel, QoS und Re
 
 **System:** CPU-Auslastung, Arbeitsspeicher, CPU-Temperatur, Datenträgerbelegung, Laufzeit, Hostname, Betriebssystem und aktive IP-Adressen. Neustart und Ausschalten nur nach Sicherheitsabfrage.
 
+## Echtzeituhr (RTC)
+
+Für einen zuverlässigen Betrieb ohne Netzwerk bzw. NTP soll eine batteriegepufferte **DS3231-RTC** über I²C verwendet werden. Bevorzugt wird ein DS3231-Modul für **3,3-V-Betrieb** mit Backup-Batterie. Die Standard-I²C-Adresse des DS3231 ist **0x68**.
+
+Anschluss am 40-poligen GPIO-Header des Raspberry Pi 4:
+
+| DS3231 | Kabelfarbe am vorhandenen Modul | Raspberry Pi 4 |
+|---|---|---|
+| VCC | Rot | Pin 1 – 3,3 V |
+| SDA | Grün | Pin 3 – GPIO2 / SDA1 |
+| SCL | Violett | Pin 5 – GPIO3 / SCL1 |
+| GND | Schwarz | Pin 6 – GND |
+
+Die Anschlüsse **32K** und **SQW** werden für die RTC-Grundfunktion nicht benötigt und bleiben frei. Das Modul nicht über 5 V anschließen, wenn die I²C-Pull-ups des verwendeten Moduls dadurch auf 5 V liegen könnten; für dieses Projekt wird VCC an 3,3 V betrieben.
+
+Ziel für die spätere Softwareunterstützung: Beim Booten steht die Zeit auch ohne Netzwerk zur Verfügung. Sobald NTP verfügbar ist, kann die Systemzeit synchronisiert und anschließend die RTC auf die korrigierte Zeit aktualisiert werden.
+
 ## UI-Technik
 
 Empfohlene/reale Zielarchitektur: Python mit PySide6 oder PyQt6; PyQtGraph für Verläufe. Styling über QSS. Die SVG-Dateien in `docs/images/` sind Design-Mock-ups und keine Screenshots eines anderen Frameworks. Deshalb können sie glatter/eleganter wirken als die derzeitige reale GUI. Ziel ist, die reale Qt-Oberfläche optisch an die Mock-ups anzunähern, ohne Seiteninhalte zu verändern.
