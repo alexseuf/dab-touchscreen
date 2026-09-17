@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import ipaddress
+import json
 import time
 
 from PyQt5 import QtCore, QtWidgets
@@ -197,11 +198,24 @@ class TestMainWindow(FirmwareMainWindow):
     def _mqtt_page(self):
         root = QtWidgets.QWidget()
         layout = QtWidgets.QHBoxLayout(root)
-        left = QtWidgets.QVBoxLayout()
+        layout.setContentsMargins(8, 7, 8, 7)
+        layout.setSpacing(8)
+
+        left_frame = QtWidgets.QFrame()
+        left_frame.setObjectName("section")
+        left = QtWidgets.QVBoxLayout(left_frame)
+        left.setContentsMargins(8, 7, 8, 8)
+        left.setSpacing(5)
+        left_title = QtWidgets.QLabel("Topics")
+        left_title.setStyleSheet("font-size:18px;font-weight:bold")
+        left.addWidget(left_title)
+
         toolbar = QtWidgets.QHBoxLayout()
+        toolbar.setSpacing(5)
         self.filter = QtWidgets.QLineEdit()
         self.filter.setPlaceholderText("Topic filtern …")
         self.filter.textChanged.connect(self._rebuild_topics)
+        self.filter.returnPressed.connect(self._hide_touch_keyboard)
         self.filter.installEventFilter(self)
         clear = QtWidgets.QPushButton("Liste leeren")
         clear.setToolTip("Aktuelle Explorer-Liste leeren; neue MQTT-Nachrichten werden danach wieder angezeigt")
@@ -209,23 +223,92 @@ class TestMainWindow(FirmwareMainWindow):
         toolbar.addWidget(self.filter, 3)
         toolbar.addWidget(clear, 2)
         left.addLayout(toolbar)
+
         self.topics = QtWidgets.QTreeWidget()
-        self.topics.setHeaderLabel("Topics")
+        self.topics.setHeaderHidden(True)
         self.topics.setItemsExpandable(False)
         self.topics.setExpandsOnDoubleClick(False)
         self.topics.itemClicked.connect(self._topic_clicked)
         self.topics.itemSelectionChanged.connect(self._topic_selected)
-        left.addWidget(self.topics)
+        left.addWidget(self.topics, 1)
+
+        right_frame = QtWidgets.QFrame()
+        right_frame.setObjectName("section")
+        right = QtWidgets.QVBoxLayout(right_frame)
+        right.setContentsMargins(12, 7, 12, 9)
+        right.setSpacing(5)
+        right_title = QtWidgets.QLabel("Nachricht")
+        right_title.setStyleSheet("font-size:18px;font-weight:bold")
+        right.addWidget(right_title)
+
+        topic_label = QtWidgets.QLabel("Topic")
+        topic_label.setStyleSheet("color:#9edcff")
+        right.addWidget(topic_label)
+        self.mqtt_topic_value = QtWidgets.QLineEdit()
+        self.mqtt_topic_value.setReadOnly(True)
+        self.mqtt_topic_value.setFocusPolicy(QtCore.Qt.NoFocus)
+        right.addWidget(self.mqtt_topic_value)
+
+        payload_label = QtWidgets.QLabel("Payload")
+        payload_label.setStyleSheet("color:#9edcff")
+        right.addWidget(payload_label)
+        self.mqtt_payload_value = QtWidgets.QLineEdit()
+        self.mqtt_payload_value.setReadOnly(True)
+        self.mqtt_payload_value.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.mqtt_payload_value.setMinimumHeight(42)
+        right.addWidget(self.mqtt_payload_value)
+
+        meta = QtWidgets.QHBoxLayout()
+        meta.setSpacing(12)
+        self.mqtt_qos_value = QtWidgets.QLabel("QoS: —")
+        self.mqtt_retain_value = QtWidgets.QLabel("Retained: —")
+        self.mqtt_time_value = QtWidgets.QLabel("—")
+        meta.addWidget(self.mqtt_qos_value)
+        meta.addWidget(self.mqtt_retain_value)
+        meta.addStretch(1)
+        meta.addWidget(self.mqtt_time_value)
+        right.addLayout(meta)
+
+        raw_label = QtWidgets.QLabel("Rohansicht")
+        raw_label.setStyleSheet("color:#9edcff")
+        right.addWidget(raw_label)
         self.detail = QtWidgets.QPlainTextEdit()
         self.detail.setReadOnly(True)
-        layout.addLayout(left, 2)
-        layout.addWidget(self.detail, 3)
+        right.addWidget(self.detail, 1)
+
+        layout.addWidget(left_frame, 2)
+        layout.addWidget(right_frame, 3)
         return root
 
     def _clear_mqtt_explorer(self):
         self.explorer.clear()
         self.topics.clear()
         self.detail.clear()
+        if hasattr(self, "mqtt_topic_value"):
+            self.mqtt_topic_value.clear()
+            self.mqtt_payload_value.clear()
+            self.mqtt_qos_value.setText("QoS: —")
+            self.mqtt_retain_value.setText("Retained: —")
+            self.mqtt_time_value.setText("—")
+
+    def _refresh_selected_topic(self):
+        items = self.topics.selectedItems()
+        if not items:
+            return
+        topic = items[0].data(0, QtCore.Qt.UserRole)
+        if topic not in self.explorer:
+            return
+        message = self.explorer[topic]
+        self.mqtt_topic_value.setText(message.topic)
+        self.mqtt_payload_value.setText(message.payload)
+        self.mqtt_qos_value.setText(f"QoS: {message.qos}")
+        self.mqtt_retain_value.setText(f"Retained: {'true' if message.retain else 'false'}")
+        self.mqtt_time_value.setText(time.strftime("%H:%M:%S", time.localtime(message.received_at)))
+        if message.parsed is not None:
+            raw = json.dumps(message.parsed, indent=2, ensure_ascii=False)
+        else:
+            raw = message.payload
+        self.detail.setPlainText(raw)
 
     def _refresh(self):
         for sid, card in self.cards.items():
