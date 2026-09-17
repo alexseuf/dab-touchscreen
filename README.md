@@ -2,6 +2,12 @@
 
 Touch-HMI für Raspberry Pi 4 mit offiziellem 7-Zoll-Raspberry-Pi-Touchdisplay. Verbindliche Referenzauflösung: **800×480 Pixel im Querformat**. Das System visualisiert dreiphasige PFC, Zwischenkreis und DAB, empfängt Betriebsdaten über MQTT und stellt einen lokalen MQTT-Broker bereit.
 
+
+
+### Hardware-Teststatus WLAN/Firmware
+
+Auf Raspberry Pi 4 mit NetworkManager getestet: Die gewählte Firmware-Branch bleibt über Updates gespeichert, WLAN kann nach manuellem Trennen über das gespeicherte NetworkManager-Profil ohne erneute Passworteingabe verbunden werden, und der WLAN-Hauptschalter funktioniert. Die Wiederherstellung des ausgeschalteten WLAN-Hauptschalters über ein Firmware-Update wird separat validiert.
+
 ## Hauptnavigation
 
 Die tatsächlich implementierte und verbindliche Hauptnavigation lautet:
