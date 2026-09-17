@@ -1,0 +1,14 @@
+[Unit]
+Description=DAB DS3231 RTC synchronization
+After=systemd-modules-load.service
+Before=time-sync.target
+Wants=time-sync.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/dab-touchscreen/scripts/rtc-sync.sh boot
+ExecStop=/opt/dab-touchscreen/scripts/rtc-sync.sh shutdown
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
