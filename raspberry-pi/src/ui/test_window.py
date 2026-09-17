@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import html
 import ipaddress
 import time
 
 from PyQt5 import QtCore, QtWidgets
 
+from src.network.service import broker_status
 from src.ui.firmware_window import FirmwareMainWindow
 
 
@@ -13,21 +15,56 @@ class TestMainWindow(FirmwareMainWindow):
 
     def _lan(self):
         root = super()._lan()
-        # Stack Ethernet above the local MQTT status. This keeps all IPv4 input
-        # fields high enough to remain visible when the Wayland OSK is open.
         layout = root.layout()
         if isinstance(layout, QtWidgets.QBoxLayout):
             layout.setDirection(QtWidgets.QBoxLayout.TopToBottom)
-            layout.setStretch(0, 3)
-            layout.setStretch(1, 2)
+            # Ethernet gets almost all available height; MQTT is a compact row.
+            layout.setStretch(0, 6)
+            layout.setStretch(1, 1)
 
-        # Users normally recognise the IPv4 subnet mask more readily than the
-        # CIDR prefix length. NetworkManager still receives CIDR internally.
+        # Move DHCP/static selection into the Ethernet heading row. This frees
+        # one complete row for larger input fields and higher action buttons.
+        ethernet = self.lan_dhcp.parentWidget()
+        form = ethernet.layout() if ethernet is not None else None
+        if isinstance(form, QtWidgets.QGridLayout):
+            title = None
+            for label in ethernet.findChildren(QtWidgets.QLabel):
+                if label.text() == "Ethernet / IPv4":
+                    title = label
+                    break
+            if title is not None:
+                form.addWidget(title, 0, 0, 1, 2)
+            form.addWidget(self.lan_dhcp, 0, 2)
+            form.addWidget(self.lan_static, 0, 3)
+            form.setRowMinimumHeight(0, 34)
+            for row in range(2, 6):
+                form.setRowMinimumHeight(row, 42)
+            form.setRowStretch(7, 1)
+
         self.lan_prefix.setPlaceholderText("255.255.255.0")
         for label in root.findChildren(QtWidgets.QLabel):
             if label.text() == "Prefix":
                 label.setText("Subnetzmaske")
                 break
+
+        # Make the local broker section compact. The dynamic label itself is
+        # rendered as three columns: state | broker address | port.
+        mqtt_frame = self.lan_mqtt_status.parentWidget()
+        mqtt_layout = mqtt_frame.layout() if mqtt_frame is not None else None
+        if isinstance(mqtt_layout, QtWidgets.QVBoxLayout):
+            for index in reversed(range(mqtt_layout.count())):
+                item = mqtt_layout.itemAt(index)
+                widget = item.widget()
+                if widget is not None and widget is not self.lan_mqtt_status:
+                    mqtt_layout.removeWidget(widget)
+                    widget.hide()
+            title = QtWidgets.QLabel("Lokaler MQTT-Broker")
+            title.setStyleSheet("font-size:16px;font-weight:bold")
+            mqtt_layout.insertWidget(0, title)
+            self.lan_mqtt_status.setAlignment(QtCore.Qt.AlignVCenter | QtCore.Qt.AlignLeft)
+            self.lan_mqtt_status.setMinimumHeight(40)
+            self.lan_mqtt_status.setMaximumHeight(46)
+
         self._lan_mode_changed()
         return root
 
@@ -40,22 +77,15 @@ class TestMainWindow(FirmwareMainWindow):
             if not manual:
                 field.clearFocus()
         if not manual:
-            # A field that had focus before switching to DHCP must not leave
-            # the Wayland on-screen keyboard covering the kiosk UI.
             self._hide_touch_keyboard()
 
     def eventFilter(self, obj, event):
         if obj in getattr(self, "lan_fields", ()) and event.type() == QtCore.QEvent.MouseButtonPress:
             if getattr(self, "lan_dhcp", None) is not None and self.lan_dhcp.isChecked():
-                # DHCP fields are display-only: no focus and no OSK.
                 obj.clearFocus()
                 self._hide_touch_keyboard()
                 return True
-
-            # In manual mode preserve the existing value. The normal focus
-            # path on the touchscreen can select the complete QLineEdit, which
-            # makes the first typed digit replace the whole address. Position
-            # the cursor exactly where the user touched instead.
+            # Keep the old address and place the cursor at the touched digit.
             obj.setFocus(QtCore.Qt.MouseFocusReason)
             obj.deselect()
             obj.setCursorPosition(obj.cursorPositionAt(event.pos()))
@@ -84,10 +114,22 @@ class TestMainWindow(FirmwareMainWindow):
         shown = dict(status)
         shown["prefix"] = self._prefix_to_netmask(status.get("prefix", "24"))
         super()._network_refreshed(shown)
+        self._update_compact_broker_status()
+
+    def _update_compact_broker_status(self):
+        broker = broker_status()
+        color = "#34d26b" if broker["running"] else "#e63946"
+        state = "Läuft" if broker["running"] else "Nicht erreichbar"
+        self._broker_host = str(broker["host"])
+        self.lan_mqtt_status.setText(
+            f"<table width='100%'><tr>"
+            f"<td width='28%'><span style='color:{color};font-size:20px'>●</span> <b>{state}</b></td>"
+            f"<td width='52%'><b>Broker-Adresse</b>&nbsp; mqtt://{html.escape(self._broker_host)}</td>"
+            f"<td width='20%'><b>Port</b>&nbsp; {broker['port']}</td>"
+            f"</tr></table>"
+        )
 
     def _apply_lan(self):
-        # Keep the UI in dotted-decimal notation while passing the existing
-        # network service the CIDR prefix it expects (e.g. 255.255.255.0 -> 24).
         shown_mask = self.lan_prefix.text()
         self.lan_prefix.setText(self._netmask_to_prefix(shown_mask))
         try:
@@ -123,16 +165,11 @@ class TestMainWindow(FirmwareMainWindow):
         return root
 
     def _clear_mqtt_explorer(self):
-        # This intentionally clears only the local observer state. It neither
-        # publishes tombstones nor reconnects/resubscribes, so retained broker
-        # messages are not modified or replayed by this action.
         self.explorer.clear()
         self.topics.clear()
         self.detail.clear()
 
     def _refresh(self):
-        # Keep the compact bottom status line useful during commissioning: show
-        # the configured MQTT broker address only while the client is connected.
         for sid, card in self.cards.items():
             card.set_value(self.model.get(sid))
         for sid, curve in self.curves.items():
@@ -140,8 +177,12 @@ class TestMainWindow(FirmwareMainWindow):
             curve.setData([x for x, _ in pts], [y for _, y in pts])
         connected = bool(self.mqtt and self.mqtt.connected)
         if connected:
-            host = str(self.config.get("mqtt", {}).get("host", "")).strip()
-            broker = f" {host}" if host else ""
-            self.status.setText(f"MQTT: verbunden{broker}   {time.strftime('%H:%M:%S')}")
+            # Use the same externally reachable broker address that is shown on
+            # the LAN page instead of the MQTT client's loopback host 127.0.0.1.
+            host = getattr(self, "_broker_host", "")
+            if not host:
+                host = str(broker_status()["host"])
+                self._broker_host = host
+            self.status.setText(f"MQTT: verbunden {host}   {time.strftime('%H:%M:%S')}")
         else:
             self.status.setText(f"MQTT: nicht verbunden   {time.strftime('%H:%M:%S')}")
