@@ -24,13 +24,16 @@ class TestMainWindow(FirmwareMainWindow):
         ethernet = self.lan_dhcp.parentWidget()
         form = ethernet.layout() if ethernet is not None else None
         if isinstance(form, QtWidgets.QGridLayout):
-            # Two-column Ethernet arrangement. Left: the four IPv4 values.
-            # Right: mode, actions and status. This avoids extremely wide line
-            # edits and keeps all important controls in the upper half.
+            # Compact two-column layout sized for the 800x480 display. The
+            # fourth IPv4 field must stay above Squeekboard's upper edge.
+            form.setContentsMargins(7, 2, 7, 2)
+            form.setHorizontalSpacing(6)
+            form.setVerticalSpacing(1)
             title = next((label for label in ethernet.findChildren(QtWidgets.QLabel)
                           if label.text() == "Ethernet / IPv4"), None)
             labels = {label.text(): label for label in ethernet.findChildren(QtWidgets.QLabel)}
             if title is not None:
+                title.setStyleSheet("font-size:17px;font-weight:bold")
                 form.addWidget(title, 0, 0, 1, 2)
             form.addWidget(self.lan_dhcp, 0, 2)
             form.addWidget(self.lan_static, 0, 3)
@@ -46,18 +49,23 @@ class TestMainWindow(FirmwareMainWindow):
                 if label is not None:
                     form.addWidget(label, row, 0)
                 form.addWidget(field, row, 1)
-                field.setMinimumHeight(42)
+                field.setMinimumHeight(34)
+                field.setMaximumHeight(36)
 
             form.addWidget(self.lan_refresh_button, 1, 2, 1, 2)
             form.addWidget(self.lan_apply_button, 2, 2, 1, 2)
+            self.lan_refresh_button.setMinimumHeight(34)
+            self.lan_apply_button.setMinimumHeight(34)
             form.addWidget(self.lan_result, 3, 2, 2, 2)
             form.setColumnStretch(0, 2)
             form.setColumnStretch(1, 5)
             form.setColumnStretch(2, 2)
             form.setColumnStretch(3, 2)
-            form.setRowMinimumHeight(0, 34)
+            form.setRowMinimumHeight(0, 28)
             for row in range(1, 5):
-                form.setRowMinimumHeight(row, 44)
+                form.setRowMinimumHeight(row, 36)
+                form.setRowStretch(row, 0)
+            form.setRowStretch(5, 1)
 
         self.lan_prefix.setPlaceholderText("255.255.255.0")
         for label in root.findChildren(QtWidgets.QLabel):
