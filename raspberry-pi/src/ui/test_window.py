@@ -13,6 +13,14 @@ class TestMainWindow(FirmwareMainWindow):
 
     def _lan(self):
         root = super()._lan()
+        # Stack Ethernet above the local MQTT status. This keeps all IPv4 input
+        # fields high enough to remain visible when the Wayland OSK is open.
+        layout = root.layout()
+        if isinstance(layout, QtWidgets.QBoxLayout):
+            layout.setDirection(QtWidgets.QBoxLayout.TopToBottom)
+            layout.setStretch(0, 3)
+            layout.setStretch(1, 2)
+
         # Users normally recognise the IPv4 subnet mask more readily than the
         # CIDR prefix length. NetworkManager still receives CIDR internally.
         self.lan_prefix.setPlaceholderText("255.255.255.0")
@@ -37,14 +45,22 @@ class TestMainWindow(FirmwareMainWindow):
             self._hide_touch_keyboard()
 
     def eventFilter(self, obj, event):
-        # The base window opens the OSK for every LAN QLineEdit on a mouse/touch
-        # press. Explicitly consume those presses while DHCP is selected so a
-        # disabled/read-only field can never trigger the Wayland keyboard.
         if obj in getattr(self, "lan_fields", ()) and event.type() == QtCore.QEvent.MouseButtonPress:
             if getattr(self, "lan_dhcp", None) is not None and self.lan_dhcp.isChecked():
+                # DHCP fields are display-only: no focus and no OSK.
                 obj.clearFocus()
                 self._hide_touch_keyboard()
                 return True
+
+            # In manual mode preserve the existing value. The normal focus
+            # path on the touchscreen can select the complete QLineEdit, which
+            # makes the first typed digit replace the whole address. Position
+            # the cursor exactly where the user touched instead.
+            obj.setFocus(QtCore.Qt.MouseFocusReason)
+            obj.deselect()
+            obj.setCursorPosition(obj.cursorPositionAt(event.pos()))
+            QtCore.QTimer.singleShot(0, lambda field=obj: self._show_touch_keyboard(field))
+            return True
         return super().eventFilter(obj, event)
 
     @staticmethod
