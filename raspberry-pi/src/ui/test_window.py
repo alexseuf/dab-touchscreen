@@ -18,9 +18,9 @@ class TestMainWindow(FirmwareMainWindow):
         layout = root.layout()
         if isinstance(layout, QtWidgets.QBoxLayout):
             layout.setDirection(QtWidgets.QBoxLayout.TopToBottom)
-            # Ethernet should only consume the height its controls need. The
-            # MQTT frame starts immediately below and receives the free space.
-            layout.setStretch(0, 0)
+            # Split the available LAN page vertically: roughly two thirds for
+            # Ethernet/IPv4 and one third for the local MQTT broker.
+            layout.setStretch(0, 2)
             layout.setStretch(1, 1)
 
         ethernet = self.lan_dhcp.parentWidget()
@@ -64,11 +64,13 @@ class TestMainWindow(FirmwareMainWindow):
             for row in range(1, 5):
                 form.setRowMinimumHeight(row, 36)
                 form.setRowStretch(row, 0)
-            form.setRowStretch(5, 0)
+            form.setRowStretch(5, 1)
 
-            # Remove the large unused area below the IPv4 rows.
-            ethernet.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
-            ethernet.setMaximumHeight(190)
+            # Let the outer 2:1 split control the frame height. This restores
+            # enough room above the MQTT section while keeping the aligned
+            # IPv4 fields and right-side controls unchanged.
+            ethernet.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
+            ethernet.setMaximumHeight(16777215)
 
         self.lan_prefix.setPlaceholderText("255.255.255.0")
         for label in root.findChildren(QtWidgets.QLabel):
