@@ -4,28 +4,29 @@ outlines:
     altline: { width: 118, height: 42 }
     spaceline: { width: 314, height: 42 }
     special: { width: 70, height: 42 }
+    hidekey: { width: 35, height: 42 }
 
 views:
     base:
         - "q w e r t z u i o p ü"
         - "a s d f g h j k l ö ä"
         - "Shift_L   y x c v b n m  BackSpace"
-        - "show_numbers preferences         space        , . Return"
+        - "show_numbers preferences         space        , . HideKeyboard Return"
     upper:
         - "Q W E R T Z U I O P Ü"
         - "A S D F G H J K L Ö Ä"
         - "Shift_L   Y X C V B N M  BackSpace"
-        - "show_numbers preferences         space        ! ? Return"
+        - "show_numbers preferences         space        ! ? HideKeyboard Return"
     numbers:
         - "1 2 3 4 5 6 7 8 9 0"
         - "@ # % & - _ + ( ) ß"
         - "show_symbols   ; \" ' : = < >  BackSpace"
-        - "show_letters preferences         space        , . Return"
+        - "show_letters preferences         space        , . HideKeyboard Return"
     symbols:
         - "~ ` ´  · © ® ÷ × ¶"
         - "€ £ $ ¥ ^ ° * { } |"
         - "show_numbers   \\ / § π τ [ ]  BackSpace"
-        - "show_letters preferences         space        , . Return"
+        - "show_letters preferences         space        , . HideKeyboard Return"
 
 buttons:
     Shift_L:
@@ -58,6 +59,10 @@ buttons:
             set_view: "symbols"
         outline: "altline"
         label: "*/="
+    HideKeyboard:
+        outline: "hidekey"
+        label: "↓"
+        keysym: "Escape"
     space:
         outline: "spaceline"
         text: " "
