@@ -6,9 +6,6 @@ mkdir -p "$STATE_DIR"
 exec >>"$STATE_DIR/wayland-kiosk.log" 2>&1
 
 export QT_QPA_PLATFORM=wayland
-# Explicitly use the Wayland input-method path. On the kiosk image this avoids
-# numeric/symbol pages of the on-screen keyboard being visible while their key
-# events fail to reach the focused Qt line edit.
 export QT_IM_MODULE=wayland
 if [ -r /etc/dab-touchscreen/env ]; then
     set -a
@@ -16,10 +13,16 @@ if [ -r /etc/dab-touchscreen/env ]; then
     set +a
 fi
 
-# TEST touch behaviour: use Raspberry Pi OS' native wf-panel-pi + wfplug-squeek
-# control and remove the old DAB Squeekboard override. This makes the stock
-# keyboard wider and exposes the native keyboard show/hide icon in the panel.
-/opt/dab-touchscreen/scripts/configure-touch-desktop.sh "$(id -un)" || true
+# This autostart entry is executed inside LXDE-pi-labwc, so WAYLAND_DISPLAY and
+# XDG_RUNTIME_DIR are available here. Start WayVNC in exactly this environment.
+if command -v wayvnc >/dev/null 2>&1; then
+    pkill -x wayvnc 2>/dev/null || true
+    nohup wayvnc --config="$HOME/.config/wayvnc/config" >"$STATE_DIR/wayvnc.log" 2>&1 &
+fi
+
+# Squeekboard is already managed by the Raspberry Pi desktop session. The TEST
+# layout was installed into its real system keyboard directory before LightDM
+# restarted, so do not kill/restart Squeekboard from the DAB application.
 
 sleep 2
 if command -v wlr-randr >/dev/null 2>&1; then
