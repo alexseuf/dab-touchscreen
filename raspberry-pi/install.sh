@@ -34,13 +34,7 @@ chmod 0755 "$INSTALL_DIR/install.sh" "$INSTALL_DIR/update.sh" "$INSTALL_DIR/unin
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 /var/lib/dab-touchscreen
 install -d -o root -g "$SERVICE_USER" -m 0750 "$ENV_DIR"
 
-# Demo data are generated only inside the GUI (DemoPublisher). The historical
-# system-wide MQTT simulator must never run in production because its messages
-# are indistinguishable from real MQTT data while the UI is in Live mode.
 DAB_ENABLE_SIMULATOR=0
-# This appliance intentionally exposes its local broker on LAN/WLAN during
-# commissioning. 0.0.0.0 makes the same listener follow DHCP/WLAN address
-# changes and also works when Ethernet is temporarily unavailable.
 DAB_MQTT_LISTEN_ADDRESS=0.0.0.0
 DAB_MQTT_USERNAME=
 DAB_MQTT_PASSWORD=
@@ -58,9 +52,6 @@ if [[ -n ${DAB_MQTT_USERNAME:-} || -n ${DAB_MQTT_PASSWORD:-} ]]; then
     [[ -n ${DAB_MQTT_USERNAME:-} && -n ${DAB_MQTT_PASSWORD:-} ]] || { echo "DAB_MQTT_USERNAME und DAB_MQTT_PASSWORD müssen gemeinsam gesetzt werden" >&2; exit 1; }
     ALLOW_ANONYMOUS=false; PASSWORD_DIRECTIVE='password_file /etc/mosquitto/dab-touchscreen.passwd'; umask 077; mosquitto_passwd -b -c /etc/mosquitto/dab-touchscreen.passwd "$DAB_MQTT_USERNAME" "$DAB_MQTT_PASSWORD"; chown root:mosquitto /etc/mosquitto/dab-touchscreen.passwd; chmod 0640 /etc/mosquitto/dab-touchscreen.passwd
 else
-    # TEST/commissioning mode: external anonymous access is deliberate. Keep
-    # the setting explicit here so an update cannot silently fall back to
-    # localhost while the UI advertises a LAN/WLAN broker address.
     ALLOW_ANONYMOUS=true; PASSWORD_DIRECTIVE=; rm -f /etc/mosquitto/dab-touchscreen.passwd
 fi
 
@@ -83,16 +74,16 @@ install -o root -g root -m 0644 "$ROOT_DIR/system/40-dab-touchscreen-rotate.conf
 install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-networkmanager.rules" /etc/polkit-1/rules.d/49-dab-networkmanager.rules
 install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-firmware-update.rules" /etc/polkit-1/rules.d/49-dab-firmware-update.rules
 
-# Suppress desktop notification bubbles in the dedicated kiosk account. This
-# targets the notification daemon, not NetworkManager itself; WLAN operation
-# and the application's own WLAN status remain unaffected.
+# DAB keyboard override: the extra key at the right edge emits Escape. The UI
+# catches Escape in editable fields and hides Squeekboard through OSK0 D-Bus.
+install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 "/home/$SERVICE_USER/.local/share/squeekboard/keyboards"
+install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0644 "$ROOT_DIR/system/squeekboard/de_wide.yaml" "/home/$SERVICE_USER/.local/share/squeekboard/keyboards/de_wide.yaml"
+
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 "/home/$SERVICE_USER/.config"
 cat >"/home/$SERVICE_USER/.config/labwc-autostart-notifications-disabled" <<'EOF'
 # DAB kiosk marker: desktop notification bubbles intentionally disabled.
 EOF
 chown "$SERVICE_USER:$SERVICE_USER" "/home/$SERVICE_USER/.config/labwc-autostart-notifications-disabled"
-# Raspberry Pi OS Bookworm commonly uses lxsession/lxplug notification helpers.
-# Per-user autostart masks are safe even when a component is not installed.
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 "/home/$SERVICE_USER/.config/autostart"
 for desktop in lxpolkit-notify.desktop nm-applet.desktop; do
  cat >"/home/$SERVICE_USER/.config/autostart/$desktop" <<EOF
@@ -109,7 +100,6 @@ python3 -m compileall -q "$INSTALL_DIR/src" "$INSTALL_DIR/scripts"
 systemctl daemon-reload
 systemctl enable NetworkManager.service mosquitto.service lightdm.service
 systemctl disable --now dab-touchscreen.service 2>/dev/null || true
-# Always remove the legacy external simulator from the running system.
 systemctl disable --now dab-mqtt-simulator.service 2>/dev/null || true
 pkill -f '/opt/dab-touchscreen/scripts/mqtt_simulator.py' 2>/dev/null || true
 systemctl restart mosquitto.service
