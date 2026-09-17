@@ -45,16 +45,15 @@ class TestMainWindow(FirmwareMainWindow):
             for row, (name, field) in enumerate(rows, 1):
                 label = labels.get(name)
                 if label is not None:
-                    form.addWidget(label, row, 0)
-                form.addWidget(field, row, 1)
-                field.setMinimumHeight(34)
-                field.setMaximumHeight(36)
+                    form.addWidget(label, row, 0, alignment=QtCore.Qt.AlignVCenter)
+                form.addWidget(field, row, 1, alignment=QtCore.Qt.AlignVCenter)
+                field.setFixedHeight(36)
 
             form.addWidget(self.lan_refresh_button, 1, 2, 1, 2)
             form.addWidget(self.lan_apply_button, 2, 2, 1, 2)
-            self.lan_refresh_button.setMinimumHeight(34)
-            self.lan_apply_button.setMinimumHeight(34)
-            form.addWidget(self.lan_result, 3, 2, 2, 2)
+            self.lan_refresh_button.setFixedHeight(36)
+            self.lan_apply_button.setFixedHeight(36)
+            form.addWidget(self.lan_result, 3, 2, 2, 2, alignment=QtCore.Qt.AlignTop)
             form.setColumnStretch(0, 2)
             form.setColumnStretch(1, 5)
             form.setColumnStretch(2, 2)
