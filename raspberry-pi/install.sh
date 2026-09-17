@@ -38,13 +38,16 @@ install -d -o root -g "$SERVICE_USER" -m 0750 "$ENV_DIR"
 # system-wide MQTT simulator must never run in production because its messages
 # are indistinguishable from real MQTT data while the UI is in Live mode.
 DAB_ENABLE_SIMULATOR=0
-DAB_MQTT_LISTEN_ADDRESS=127.0.0.1
+# This appliance intentionally exposes its local broker on LAN/WLAN during
+# commissioning. 0.0.0.0 makes the same listener follow DHCP/WLAN address
+# changes and also works when Ethernet is temporarily unavailable.
+DAB_MQTT_LISTEN_ADDRESS=0.0.0.0
 DAB_MQTT_USERNAME=
 DAB_MQTT_PASSWORD=
 if [[ -f "$ROOT_DIR/secrets.env" ]]; then . "$ROOT_DIR/secrets.env"; fi
 DAB_ENABLE_SIMULATOR=0
 
-python3 - "${DAB_MQTT_LISTEN_ADDRESS:-127.0.0.1}" <<'PY'
+python3 - "${DAB_MQTT_LISTEN_ADDRESS:-0.0.0.0}" <<'PY'
 import ipaddress, sys
 ipaddress.ip_address(sys.argv[1])
 PY
@@ -55,20 +58,22 @@ if [[ -n ${DAB_MQTT_USERNAME:-} || -n ${DAB_MQTT_PASSWORD:-} ]]; then
     [[ -n ${DAB_MQTT_USERNAME:-} && -n ${DAB_MQTT_PASSWORD:-} ]] || { echo "DAB_MQTT_USERNAME und DAB_MQTT_PASSWORD müssen gemeinsam gesetzt werden" >&2; exit 1; }
     ALLOW_ANONYMOUS=false; PASSWORD_DIRECTIVE='password_file /etc/mosquitto/dab-touchscreen.passwd'; umask 077; mosquitto_passwd -b -c /etc/mosquitto/dab-touchscreen.passwd "$DAB_MQTT_USERNAME" "$DAB_MQTT_PASSWORD"; chown root:mosquitto /etc/mosquitto/dab-touchscreen.passwd; chmod 0640 /etc/mosquitto/dab-touchscreen.passwd
 else
-    if [[ ${DAB_MQTT_LISTEN_ADDRESS:-127.0.0.1} != 127.0.0.1 && ${DAB_MQTT_LISTEN_ADDRESS:-} != ::1 ]]; then echo "Externer MQTT-Listener ohne Benutzer/Passwort wird aus Sicherheitsgründen nicht installiert" >&2; exit 1; fi
+    # TEST/commissioning mode: external anonymous access is deliberate. Keep
+    # the setting explicit here so an update cannot silently fall back to
+    # localhost while the UI advertises a LAN/WLAN broker address.
     ALLOW_ANONYMOUS=true; PASSWORD_DIRECTIVE=; rm -f /etc/mosquitto/dab-touchscreen.passwd
 fi
 
 umask 027
 {
  printf 'DAB_ENABLE_SIMULATOR=0\n'
- printf 'DAB_MQTT_LISTEN_ADDRESS=%s\n' "${DAB_MQTT_LISTEN_ADDRESS:-127.0.0.1}"
+ printf 'DAB_MQTT_LISTEN_ADDRESS=%s\n' "${DAB_MQTT_LISTEN_ADDRESS:-0.0.0.0}"
  printf 'DAB_MQTT_USERNAME=%s\n' "${DAB_MQTT_USERNAME:-}"
  printf 'DAB_MQTT_PASSWORD=%s\n' "${DAB_MQTT_PASSWORD:-}"
 } >"$ENV_DIR/env"
 chown root:"$SERVICE_USER" "$ENV_DIR/env"; chmod 0640 "$ENV_DIR/env"
 
-sed -e "s/__LISTEN_ADDRESS__/${DAB_MQTT_LISTEN_ADDRESS:-127.0.0.1}/" -e "s/__ALLOW_ANONYMOUS__/$ALLOW_ANONYMOUS/" -e "s|__PASSWORD_FILE__|$PASSWORD_DIRECTIVE|" "$ROOT_DIR/system/mosquitto-dab.conf" >/etc/mosquitto/conf.d/dab-touchscreen.conf
+sed -e "s/__LISTEN_ADDRESS__/${DAB_MQTT_LISTEN_ADDRESS:-0.0.0.0}/" -e "s/__ALLOW_ANONYMOUS__/$ALLOW_ANONYMOUS/" -e "s|__PASSWORD_FILE__|$PASSWORD_DIRECTIVE|" "$ROOT_DIR/system/mosquitto-dab.conf" >/etc/mosquitto/conf.d/dab-touchscreen.conf
 chown root:root /etc/mosquitto/conf.d/dab-touchscreen.conf; chmod 0644 /etc/mosquitto/conf.d/dab-touchscreen.conf
 
 install -o root -g root -m 0644 "$ROOT_DIR/systemd/dab-mqtt-simulator.service" /etc/systemd/system/dab-mqtt-simulator.service
