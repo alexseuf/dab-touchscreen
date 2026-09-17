@@ -6,6 +6,7 @@ STATUS_FILE="$STATE_DIR/firmware-update-status.json"
 BACKUP_ROOT="$STATE_DIR/firmware-backups"
 STAGE_ROOT="$STATE_DIR/firmware-staging"
 NETWORK_STATE="$STATE_DIR/network-before-update.json"
+WIFI_RADIO_STATE="$STATE_DIR/wifi-radio-before-update"
 SERVICE_USER=dab
 ALLOWED_REPOSITORY=alexseuf/dab-touchscreen
 CURRENT_PHASE=start
@@ -25,6 +26,15 @@ with os.fdopen(fd,"w",encoding="utf-8") as f: json.dump(data,f,ensure_ascii=Fals
 os.chmod(tmp,0o640); os.replace(tmp,path)
 PY
  chown "$SERVICE_USER:$SERVICE_USER" "$STATUS_FILE"
+}
+save_wifi_radio_state() {
+ local state
+ state=$(nmcli -t -f WIFI general 2>/dev/null | head -n1 | tr -d "\r") || state=""
+ case "$state" in enabled|aktiviert) printf "enabled\n" >"$WIFI_RADIO_STATE" ;; disabled|deaktiviert) printf "disabled\n" >"$WIFI_RADIO_STATE" ;; *) rm -f "$WIFI_RADIO_STATE" ;; esac
+}
+restore_wifi_radio_state() {
+ [[ -r "$WIFI_RADIO_STATE" ]] || return 0
+ case "$(cat "$WIFI_RADIO_STATE")" in enabled) nmcli radio wifi on ;; disabled) nmcli radio wifi off ;; esac
 }
 save_network_state() {
  python3 - "$NETWORK_STATE" <<'PY'
@@ -95,17 +105,17 @@ run_apt=0; candidate_packages=$(package_signature "$src/install.sh" 2>/dev/null 
 if [[ -z $candidate_packages || -z $installed_packages || $candidate_packages != "$installed_packages" ]]; then run_apt=1; fi
 rollback() {
  rc=$?; failed_command=${BASH_COMMAND:-unbekannt}; trap - ERR; status rollback "Fehler in $CURRENT_PHASE (Exit $rc) – Rollback läuft"
- if [[ -d $backup ]]; then rsync -a --delete "$backup/" "$INSTALL_DIR/" || true; chown -R root:root "$INSTALL_DIR" || true; restore_network_state || true; systemctl restart lightdm.service || true; status failed "Update fehlgeschlagen: $CURRENT_PHASE · Exit $rc · Rollback erfolgreich"; else status failed "Update fehlgeschlagen: $CURRENT_PHASE · Exit $rc · kein Backup"; fi
+ if [[ -d $backup ]]; then rsync -a --delete "$backup/" "$INSTALL_DIR/" || true; chown -R root:root "$INSTALL_DIR" || true; restore_network_state || true; restore_wifi_radio_state || true; systemctl restart lightdm.service || true; status failed "Update fehlgeschlagen: $CURRENT_PHASE · Exit $rc · Rollback erfolgreich"; else status failed "Update fehlgeschlagen: $CURRENT_PHASE · Exit $rc · kein Backup"; fi
  logger -t dab-firmware "Update $sha fehlgeschlagen: Phase=$CURRENT_PHASE Exit=$rc Befehl=$failed_command"; exit "$rc"
 }
 trap rollback ERR
-CURRENT_PHASE=backup; status backup "Installation und Netzwerkeinstellungen werden gesichert"; mkdir -p "$backup"; rsync -a "$INSTALL_DIR/" "$backup/"; rm -f "$NETWORK_STATE"; save_network_state
+CURRENT_PHASE=backup; status backup "Installation und Netzwerkeinstellungen werden gesichert"; mkdir -p "$backup"; rsync -a "$INSTALL_DIR/" "$backup/"; rm -f "$NETWORK_STATE" "$WIFI_RADIO_STATE"; save_network_state; save_wifi_radio_state
 CURRENT_PHASE=install
 if (( run_apt )); then status install "Abhängigkeiten geändert – vollständige Installation"; "$src/install.sh" --no-restart; else status install "Version wird installiert"; "$src/install.sh" --no-apt --no-restart; fi
 # Old images may still contain this commissioning unit although its script is no longer part of the application.
 # Stop the resulting 30-second restart loop after a successful application install.
 if [[ ! -f "$INSTALL_DIR/scripts/autonomous_commissioning.py" ]]; then systemctl disable --now dab-firstboot.service 2>/dev/null || true; fi
-CURRENT_PHASE=network; status network "Ethernet-Konfiguration wird wiederhergestellt"; restore_network_state
+CURRENT_PHASE=network; status network "Netzwerk-Konfiguration wird wiederhergestellt"; restore_network_state; restore_wifi_radio_state
 CURRENT_PHASE=health; status health "Installierte Version wird geprüft"; (cd "$INSTALL_DIR"; PYTHONPATH="$INSTALL_DIR" python3 -m compileall -q src scripts; PYTHONPATH="$INSTALL_DIR" python3 -m unittest discover -s tests -v)
 python3 - "$STATE_DIR/firmware-state.json" "$repo" "$sha" "$label" "$old_commit" <<'PY'
 import json,sys,time,os
