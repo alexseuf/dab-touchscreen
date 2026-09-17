@@ -154,13 +154,20 @@ class FirmwareMainWindow(MainWindow):
     def _firmware_check_done(self, result):
         self._firmware_busy = False; self.fw_check_button.setEnabled(True); self.fw_last_check.setText(datetime.now().strftime("%d.%m.%Y %H:%M")); versions = result["versions"]; self._available_versions = versions; self.fw_version_combo.clear(); self.fw_version_combo.addItem("Version wählen …", None)
         for item in versions: self.fw_version_combo.addItem(item["label"], item)
-        self.fw_version_combo.setEnabled(bool(versions)); releases = [v for v in versions if v["kind"] == "stable"]; main = next((v for v in versions if v["kind"] == "main"), None); self.fw_latest.setText(releases[0]["name"] if releases else ("Main " + main["sha"][:7] if main else "—")); tests = sum(1 for v in versions if v["kind"] == "test"); self.fw_status.setText(f"{len(releases)} Stable · Main · {tests} TEST"); self._firmware_selection_changed()
+        saved_ref = str(self._settings.value("firmware/selected_ref", "") or "")
+        if saved_ref:
+            saved_index = next((i for i in range(1, self.fw_version_combo.count()) if (self.fw_version_combo.itemData(i) or {}).get("ref") == saved_ref), 0)
+            if saved_index: self.fw_version_combo.setCurrentIndex(saved_index)
+        self.fw_version_combo.setEnabled(bool(versions)); releases = [v for v in versions if v["kind"] == "stable"]; main = next((v for v in versions if v["kind"] == "main"), None); test_versions = [v for v in versions if v["kind"] == "test"]; latest_parts = []; latest_parts.append("Main " + main["sha"][:7] if main else "Main —"); latest_parts.append("TEST " + test_versions[0]["sha"][:7] if test_versions else "TEST —"); self.fw_latest.setText(" · ".join(latest_parts)); tests = len(test_versions); self.fw_status.setText(f"{len(releases)} Stable · Main · {tests} TEST"); self._firmware_selection_changed()
 
     def _firmware_check_failed(self, message):
         self._firmware_busy = False; self.fw_check_button.setEnabled(True); self.fw_last_check.setText(datetime.now().strftime("%d.%m.%Y %H:%M")); self.fw_latest.setText("—"); self.fw_status.setText("GitHub-Prüfung fehlgeschlagen"); self.fw_status.setToolTip(message)
 
     def _firmware_selection_changed(self):
         item = self.fw_version_combo.currentData() if hasattr(self, "fw_version_combo") else None
+        if item and item.get("ref"):
+            self._settings.setValue("firmware/selected_ref", item["ref"])
+            self._settings.sync()
         allowed = self.fw_repository.text().strip() == DEFAULT_REPOSITORY if hasattr(self, "fw_repository") else False
         self.fw_install_button.setEnabled(bool(item and item.get("sha") and allowed and not self._firmware_busy)) if hasattr(self, "fw_install_button") else None
 
