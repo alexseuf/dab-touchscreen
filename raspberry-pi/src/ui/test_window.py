@@ -1,12 +1,68 @@
 from __future__ import annotations
 
-from PyQt5 import QtWidgets
+import ipaddress
+
+from PyQt5 import QtCore, QtWidgets
 
 from src.ui.firmware_window import FirmwareMainWindow
 
 
 class TestMainWindow(FirmwareMainWindow):
     """Incremental test UI additions kept isolated from the stable window."""
+
+    def _lan(self):
+        root = super()._lan()
+        # Users normally recognise the IPv4 subnet mask more readily than the
+        # CIDR prefix length. NetworkManager still receives CIDR internally.
+        self.lan_prefix.setPlaceholderText("255.255.255.0")
+        for label in root.findChildren(QtWidgets.QLabel):
+            if label.text() == "Prefix":
+                label.setText("Subnetzmaske")
+                break
+        self._lan_mode_changed()
+        return root
+
+    def _lan_mode_changed(self):
+        manual = self.lan_static.isChecked()
+        for field in self.lan_fields:
+            field.setEnabled(manual)
+            field.setFocusPolicy(QtCore.Qt.StrongFocus if manual else QtCore.Qt.NoFocus)
+        if not manual:
+            # A field that had focus before switching to DHCP must not leave
+            # the Wayland on-screen keyboard covering the kiosk UI.
+            self._hide_touch_keyboard()
+
+    @staticmethod
+    def _prefix_to_netmask(prefix):
+        try:
+            return str(ipaddress.IPv4Network(f"0.0.0.0/{int(prefix)}").netmask)
+        except (ValueError, TypeError):
+            return str(prefix or "")
+
+    @staticmethod
+    def _netmask_to_prefix(mask):
+        value = str(mask or "").strip()
+        if "." not in value:
+            return value
+        try:
+            return str(ipaddress.IPv4Network(f"0.0.0.0/{value}").prefixlen)
+        except (ValueError, TypeError):
+            return value
+
+    def _network_refreshed(self, status):
+        shown = dict(status)
+        shown["prefix"] = self._prefix_to_netmask(status.get("prefix", "24"))
+        super()._network_refreshed(shown)
+
+    def _apply_lan(self):
+        # Keep the UI in dotted-decimal notation while passing the existing
+        # network service the CIDR prefix it expects (e.g. 255.255.255.0 -> 24).
+        shown_mask = self.lan_prefix.text()
+        self.lan_prefix.setText(self._netmask_to_prefix(shown_mask))
+        try:
+            super()._apply_lan()
+        finally:
+            self.lan_prefix.setText(shown_mask)
 
     def _mqtt_page(self):
         root = QtWidgets.QWidget()
