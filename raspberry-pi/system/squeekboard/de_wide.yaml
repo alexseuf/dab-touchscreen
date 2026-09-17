@@ -2,9 +2,9 @@
 outlines:
     default: { width: 70, height: 42 }
     altline: { width: 118, height: 42 }
-    spaceline: { width: 314, height: 42 }
+    spaceline: { width: 279, height: 42 }
     special: { width: 70, height: 42 }
-    hidekey: { width: 35, height: 42 }
+    hidekey: { width: 70, height: 42 }
 
 views:
     base:
@@ -62,7 +62,7 @@ buttons:
     HideKeyboard:
         outline: "hidekey"
         label: "↓"
-        keysym: "Escape"
+        keysym: "F12"
     space:
         outline: "spaceline"
         text: " "
