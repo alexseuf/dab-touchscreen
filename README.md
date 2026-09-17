@@ -2,6 +2,12 @@
 
 Touch-HMI für Raspberry Pi 4 mit offiziellem 7-Zoll-Raspberry-Pi-Touchdisplay. Verbindliche Referenzauflösung: **800×480 Pixel im Querformat**. Das System visualisiert dreiphasige PFC, Zwischenkreis und DAB, empfängt Betriebsdaten über MQTT und stellt einen lokalen MQTT-Broker bereit.
 
+
+
+### Hardware-Teststatus WLAN/Firmware
+
+Auf Raspberry Pi 4 mit NetworkManager getestet: Die gewählte Firmware-Branch bleibt über Updates gespeichert, WLAN kann nach manuellem Trennen über das gespeicherte NetworkManager-Profil ohne erneute Passworteingabe verbunden werden, und der WLAN-Hauptschalter funktioniert. Auch die Wiederherstellung des ausgeschalteten WLAN-Hauptschalters über ein Firmware-Update wurde auf der Zielhardware erfolgreich validiert. Beim Laden der Werkseinstellungen bleiben LAN-/WLAN-Konfiguration und der aktuelle WLAN-Hauptschalterzustand unverändert; zurückgesetzt werden nur anwendungseigene Einstellungen.
+
 ## Hauptnavigation
 
 Die tatsächlich implementierte und verbindliche Hauptnavigation lautet:
@@ -46,20 +52,31 @@ Topic-Baum und MQTT-Nachrichten einschließlich Payload, Zeitstempel, QoS und Re
 
 ## Echtzeituhr (RTC)
 
-Für einen zuverlässigen Betrieb ohne Netzwerk bzw. NTP soll eine batteriegepufferte **DS3231-RTC** über I²C verwendet werden. Bevorzugt wird ein DS3231-Modul für **3,3-V-Betrieb** mit Backup-Batterie. Die Standard-I²C-Adresse des DS3231 ist **0x68**.
+Für eine korrekte Uhrzeit auch ohne Netzwerk/NTP wird eine batteriegepufferte **DS3231 RTC** am I²C-Bus empfohlen. Die Firmware aktiviert I²C dauerhaft und bindet die RTC beim Start ein. Damit stehen korrekte Zeitstempel für MQTT, Verläufe und Systemprotokolle auch nach einem netzlosen Neustart zur Verfügung.
 
-Anschluss am 40-poligen GPIO-Header des Raspberry Pi 4:
+### Anschluss am Raspberry Pi 4
 
-| DS3231 | Kabelfarbe am vorhandenen Modul | Raspberry Pi 4 |
+| DS3231 | Kabelfarbe | Raspberry Pi 4 |
 |---|---|---|
-| VCC | Rot | Pin 1 – 3,3 V |
-| SDA | Grün | Pin 3 – GPIO2 / SDA1 |
-| SCL | Violett | Pin 5 – GPIO3 / SCL1 |
-| GND | Schwarz | Pin 6 – GND |
+| VCC | Rot | **Pin 1 – 3,3 V** |
+| SDA | Grün | **Pin 3 – GPIO2 / SDA1** |
+| SCL | Violett | **Pin 5 – GPIO3 / SCL1** |
+| GND | Schwarz | **Pin 6 – GND** |
 
-Die Anschlüsse **32K** und **SQW** werden für die RTC-Grundfunktion nicht benötigt und bleiben frei. Das Modul nicht über 5 V anschließen, wenn die I²C-Pull-ups des verwendeten Moduls dadurch auf 5 V liegen könnten; für dieses Projekt wird VCC an 3,3 V betrieben.
+`32K` und `SQW` bleiben unbeschaltet. Das RTC-Modul wird mit **3,3 V** betrieben; die 5-V-Pins 2 und 4 werden hierfür nicht verwendet.
 
-Ziel für die spätere Softwareunterstützung: Beim Booten steht die Zeit auch ohne Netzwerk zur Verfügung. Sobald NTP verfügbar ist, kann die Systemzeit synchronisiert und anschließend die RTC auf die korrigierte Zeit aktualisiert werden.
+![Raspberry Pi 4 – DS3231 RTC Pinbelegung](docs/images/raspberry-pi-rtc-pinout.svg)
+
+Nach Installation bzw. Firmwareupdate einmal neu starten. Anschließend lässt sich die Hardware prüfen mit:
+
+```bash
+ls -l /dev/i2c-1
+sudo i2cdetect -y 1
+ls -l /dev/rtc*
+sudo hwclock --show
+```
+
+Beim I²C-Scan muss der DS3231 unter **Adresse `0x68`** erscheinen. Bei Modulen mit zusätzlichem EEPROM kann außerdem **`0x57`** sichtbar sein.
 
 ## UI-Technik
 
@@ -102,10 +119,7 @@ cd ~/dab-touchscreen && git pull --ff-only origin main && sudo ./raspberry-pi/up
 
 `update.sh` überspringt die Installation von Systempaketen. Weist eine Version
 neue oder geänderte Paketabhängigkeiten aus, ist stattdessen
-`sudo ./raspberry-pi/install.sh` auszuführen. Die bestehende Trennung von
-Repository, lokalen Secrets und Laufzeitdaten bleibt als Grundlage für einen
-späteren versionsbewussten Firmware-Updater mit Sicherung und Rollback erhalten;
-ein solches Menü wird in diesem Pull Request noch nicht implementiert.
+`sudo ./raspberry-pi/install.sh` auszuführen. Der integrierte versionsbewusste Firmware-Updater unterstützt Main- und TEST-Branch, merkt sich die gewählte Branch, sichert Netzwerkzustände und führt bei Fehlern ein Rollback aus. Der WLAN-Hauptschalterzustand wird über Firmware-Updates hinweg erhalten. Die Trennung von Repository, lokalen Secrets und Laufzeitdaten bleibt dabei bestehen.
 
 Echte Laufzeitdaten und Zugangsdaten bleiben lokal und werden durch die
 Ignore-Regeln ausgeschlossen. Historische, inzwischen abgelöste
