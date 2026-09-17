@@ -4,15 +4,22 @@ set -eu
 USER_NAME=${1:-dab}
 HOME_DIR=$(getent passwd "$USER_NAME" | cut -d: -f6)
 [ -n "$HOME_DIR" ] || HOME_DIR="/home/$USER_NAME"
+LAYOUT_DIR="$HOME_DIR/.local/share/squeekboard/keyboards"
 
-# TEST: German Squeekboard layout with the stock key count, but larger outlines.
-# This uses much more of the 800 px display width without adding a fifth column
-# or a DAB-specific hide key.
-install -d -m 0755 "$HOME_DIR/.local/share/squeekboard/keyboards"
+# Raspberry Pi's Squeekboard fork no longer searches the per-user layout path
+# automatically. It selects its keyboard directory from SQUEEKBOARD_KEYBOARDSDIR
+# (otherwise /usr/share/misc/squeekboard/keyboards). Install the DAB layout and
+# restart Squeekboard with that directory explicitly selected.
+install -d -m 0755 "$LAYOUT_DIR"
 for layout in de.yaml de_wide.yaml; do
-    install -m 0644 "/opt/dab-touchscreen/system/squeekboard/$layout" \
-        "$HOME_DIR/.local/share/squeekboard/keyboards/$layout"
+    install -m 0644 "/opt/dab-touchscreen/system/squeekboard/$layout" "$LAYOUT_DIR/$layout"
 done
+chown -R "$USER_NAME:$USER_NAME" "$HOME_DIR/.local/share/squeekboard"
+
+if command -v squeekboard >/dev/null 2>&1; then
+    pkill -x squeekboard 2>/dev/null || true
+    (SQUEEKBOARD_KEYBOARDSDIR="$LAYOUT_DIR" nohup squeekboard >"$HOME_DIR/.local/state/dab-touchscreen/squeekboard.log" 2>&1 &) || true
+fi
 
 # Force the Raspberry Pi panel to the top layer and keep it visible. The
 # wfplug-squeek plugin supplies Raspberry Pi OS' native keyboard show/hide icon.
@@ -34,7 +41,7 @@ for path in paths:
     cfg.set("panel", "autohide", "false")
     cfg.set("panel", "minimal_height", "36")
     cfg.set("panel", "position", "top")
-    cfg.set("panel", "layer", "top")
+    cfg.set("panel", "layer", "overlay")
     right = cfg.get("panel", "widgets_right", fallback="").split()
     if "squeek" not in right:
         right.append("squeek")
@@ -54,15 +61,14 @@ enable_auth=false
 xkb_layout=de
 EOF
 
-chown -R "$USER_NAME:$USER_NAME" "$HOME_DIR/.local/share/squeekboard" "$HOME_DIR/.config/wayvnc" 2>/dev/null || true
+chown -R "$USER_NAME:$USER_NAME" "$HOME_DIR/.config/wayvnc" 2>/dev/null || true
 chown -R "$USER_NAME:$USER_NAME" "$HOME_DIR/.config/wf-panel-pi" 2>/dev/null || true
 chown "$USER_NAME:$USER_NAME" "$HOME_DIR/.config/wf-panel-pi.ini" 2>/dev/null || true
 
-# The panel is normally started before the DAB autostart entry. Restart it once
-# so the TEST settings above are applied immediately instead of only next boot.
+# Restart the panel so TEST settings are applied immediately.
 if command -v wf-panel-pi >/dev/null 2>&1; then
     pkill -x wf-panel-pi 2>/dev/null || true
-    (nohup wf-panel-pi >/dev/null 2>&1 &) || true
+    (nohup wf-panel-pi >"$HOME_DIR/.local/state/dab-touchscreen/wf-panel.log" 2>&1 &) || true
 fi
 
 if command -v wayvnc >/dev/null 2>&1 && ! pgrep -x wayvnc >/dev/null 2>&1; then
