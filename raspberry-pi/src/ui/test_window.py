@@ -26,11 +26,25 @@ class TestMainWindow(FirmwareMainWindow):
         manual = self.lan_static.isChecked()
         for field in self.lan_fields:
             field.setEnabled(manual)
+            field.setReadOnly(not manual)
             field.setFocusPolicy(QtCore.Qt.StrongFocus if manual else QtCore.Qt.NoFocus)
+            if not manual:
+                field.clearFocus()
         if not manual:
             # A field that had focus before switching to DHCP must not leave
             # the Wayland on-screen keyboard covering the kiosk UI.
             self._hide_touch_keyboard()
+
+    def eventFilter(self, obj, event):
+        # The base window opens the OSK for every LAN QLineEdit on a mouse/touch
+        # press. Explicitly consume those presses while DHCP is selected so a
+        # disabled/read-only field can never trigger the Wayland keyboard.
+        if obj in getattr(self, "lan_fields", ()) and event.type() == QtCore.QEvent.MouseButtonPress:
+            if getattr(self, "lan_dhcp", None) is not None and self.lan_dhcp.isChecked():
+                obj.clearFocus()
+                self._hide_touch_keyboard()
+                return True
+        return super().eventFilter(obj, event)
 
     @staticmethod
     def _prefix_to_netmask(prefix):
