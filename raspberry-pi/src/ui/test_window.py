@@ -18,28 +18,46 @@ class TestMainWindow(FirmwareMainWindow):
         layout = root.layout()
         if isinstance(layout, QtWidgets.QBoxLayout):
             layout.setDirection(QtWidgets.QBoxLayout.TopToBottom)
-            # Ethernet gets almost all available height; MQTT is a compact row.
             layout.setStretch(0, 6)
             layout.setStretch(1, 1)
 
-        # Move DHCP/static selection into the Ethernet heading row. This frees
-        # one complete row for larger input fields and higher action buttons.
         ethernet = self.lan_dhcp.parentWidget()
         form = ethernet.layout() if ethernet is not None else None
         if isinstance(form, QtWidgets.QGridLayout):
-            title = None
-            for label in ethernet.findChildren(QtWidgets.QLabel):
-                if label.text() == "Ethernet / IPv4":
-                    title = label
-                    break
+            # Two-column Ethernet arrangement. Left: the four IPv4 values.
+            # Right: mode, actions and status. This avoids extremely wide line
+            # edits and keeps all important controls in the upper half.
+            title = next((label for label in ethernet.findChildren(QtWidgets.QLabel)
+                          if label.text() == "Ethernet / IPv4"), None)
+            labels = {label.text(): label for label in ethernet.findChildren(QtWidgets.QLabel)}
             if title is not None:
                 form.addWidget(title, 0, 0, 1, 2)
             form.addWidget(self.lan_dhcp, 0, 2)
             form.addWidget(self.lan_static, 0, 3)
+
+            rows = [
+                ("IP-Adresse", self.lan_address),
+                ("Prefix", self.lan_prefix),
+                ("Gateway", self.lan_gateway),
+                ("DNS-Server", self.lan_dns),
+            ]
+            for row, (name, field) in enumerate(rows, 1):
+                label = labels.get(name)
+                if label is not None:
+                    form.addWidget(label, row, 0)
+                form.addWidget(field, row, 1)
+                field.setMinimumHeight(42)
+
+            form.addWidget(self.lan_refresh_button, 1, 2, 1, 2)
+            form.addWidget(self.lan_apply_button, 2, 2, 1, 2)
+            form.addWidget(self.lan_result, 3, 2, 2, 2)
+            form.setColumnStretch(0, 2)
+            form.setColumnStretch(1, 5)
+            form.setColumnStretch(2, 2)
+            form.setColumnStretch(3, 2)
             form.setRowMinimumHeight(0, 34)
-            for row in range(2, 6):
-                form.setRowMinimumHeight(row, 42)
-            form.setRowStretch(7, 1)
+            for row in range(1, 5):
+                form.setRowMinimumHeight(row, 44)
 
         self.lan_prefix.setPlaceholderText("255.255.255.0")
         for label in root.findChildren(QtWidgets.QLabel):
@@ -47,8 +65,6 @@ class TestMainWindow(FirmwareMainWindow):
                 label.setText("Subnetzmaske")
                 break
 
-        # Make the local broker section compact. The dynamic label itself is
-        # rendered as three columns: state | broker address | port.
         mqtt_frame = self.lan_mqtt_status.parentWidget()
         mqtt_layout = mqtt_frame.layout() if mqtt_frame is not None else None
         if isinstance(mqtt_layout, QtWidgets.QVBoxLayout):
@@ -85,7 +101,6 @@ class TestMainWindow(FirmwareMainWindow):
                 obj.clearFocus()
                 self._hide_touch_keyboard()
                 return True
-            # Keep the old address and place the cursor at the touched digit.
             obj.setFocus(QtCore.Qt.MouseFocusReason)
             obj.deselect()
             obj.setCursorPosition(obj.cursorPositionAt(event.pos()))
@@ -177,8 +192,6 @@ class TestMainWindow(FirmwareMainWindow):
             curve.setData([x for x, _ in pts], [y for _, y in pts])
         connected = bool(self.mqtt and self.mqtt.connected)
         if connected:
-            # Use the same externally reachable broker address that is shown on
-            # the LAN page instead of the MQTT client's loopback host 127.0.0.1.
             host = getattr(self, "_broker_host", "")
             if not host:
                 host = str(broker_status()["host"])
