@@ -9,6 +9,12 @@ RESTART_DISPLAY=1
 for arg in "$@"; do case "$arg" in --no-apt) RUN_APT=0 ;; --no-restart) RESTART_DISPLAY=0 ;; *) echo "Unbekannte Option: $arg" >&2; exit 2 ;; esac; done
 if [[ ${EUID} -ne 0 ]]; then echo "Bitte mit sudo ausführen: sudo ./install.sh" >&2; exit 1; fi
 . /etc/os-release
+# DAB target locale/timezone: keep the DS3231 in UTC; Linux applies CET/CEST.
+DAB_TIMEZONE=Europe/Berlin
+if command -v timedatectl >/dev/null 2>&1; then
+  timedatectl set-timezone "$DAB_TIMEZONE"
+  timedatectl set-local-rtc 0 --adjust-system-clock
+fi
 [[ ${VERSION_CODENAME:-} == bookworm ]] || echo "WARNUNG: Getestet wurde Raspberry Pi OS Bookworm; erkannt: ${PRETTY_NAME:-unbekannt}" >&2
 PACKAGES=(network-manager policykit-1 dbus-user-session mosquitto mosquitto-clients python3 python3-yaml python3-pyqt5 python3-pyqtgraph python3-paho-mqtt sqlite3 lightdm labwc xwayland wf-panel-pi wfplug-squeek squeekboard wayvnc qtwayland5 wlr-randr autotouch raspberrypi-ui-mods fonts-dejavu-core avahi-daemon rsync ca-certificates util-linux i2c-tools)
 if (( RUN_APT )); then apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y "${PACKAGES[@]}"; fi
