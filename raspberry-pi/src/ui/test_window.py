@@ -49,10 +49,12 @@ class TestMainWindow(FirmwareMainWindow):
                 form.addWidget(field, row, 1, alignment=QtCore.Qt.AlignVCenter)
                 field.setFixedHeight(36)
 
-            form.addWidget(self.lan_refresh_button, 1, 2, 1, 2)
-            form.addWidget(self.lan_apply_button, 2, 2, 1, 2)
-            self.lan_refresh_button.setFixedHeight(36)
-            self.lan_apply_button.setFixedHeight(36)
+            # Keep the right-side controls at the top of the same grid rows.
+            # Their slightly smaller height removes the visual downward offset.
+            form.addWidget(self.lan_refresh_button, 1, 2, 1, 2, alignment=QtCore.Qt.AlignTop)
+            form.addWidget(self.lan_apply_button, 2, 2, 1, 2, alignment=QtCore.Qt.AlignTop)
+            self.lan_refresh_button.setFixedHeight(34)
+            self.lan_apply_button.setFixedHeight(34)
             form.addWidget(self.lan_result, 3, 2, 2, 2, alignment=QtCore.Qt.AlignTop)
             form.setColumnStretch(0, 2)
             form.setColumnStretch(1, 5)
@@ -103,8 +105,6 @@ class TestMainWindow(FirmwareMainWindow):
     def eventFilter(self, obj, event):
         editable = obj in getattr(self, "lan_fields", ()) or obj is getattr(self, "wifi_password", None)
         if editable and event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_Escape:
-            # The DAB Squeekboard key labelled "⌨↓" emits Escape. Consume it so
-            # it never alters/navigation-closes the kiosk and hide only the OSK.
             self._hide_touch_keyboard()
             return True
         if obj in getattr(self, "lan_fields", ()) and event.type() == QtCore.QEvent.MouseButtonPress:
