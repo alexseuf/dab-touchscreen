@@ -9,6 +9,7 @@ STAGE_ROOT="$STATE_DIR/firmware-staging"
 NETWORK_STATE="$STATE_DIR/network-before-update.json"
 SERVICE_USER=dab
 ALLOWED_REPOSITORY=alexseuf/dab-touchscreen
+CURRENT_PHASE=start
 
 repo=${1:-}
 sha=${2:-}
@@ -44,13 +45,10 @@ def run(*args):
 interface='eth0'
 connection=run('-g','GENERAL.CONNECTION','device','show',interface).splitlines()
 connection=connection[0].strip() if connection else ''
-if not connection or connection=='--':
-    raise SystemExit(0)
+if not connection or connection=='--': raise SystemExit(0)
 fields=['ipv4.method','ipv4.addresses','ipv4.gateway','ipv4.dns','ipv4.ignore-auto-dns']
-values=run('-g',','.join(fields),'connection','show',connection).splitlines()
-values += ['']*(len(fields)-len(values))
-data={'interface':interface,'connection':connection}
-data.update(dict(zip(fields,values)))
+values=run('-g',','.join(fields),'connection','show',connection).splitlines(); values += ['']*(len(fields)-len(values))
+data={'interface':interface,'connection':connection}; data.update(dict(zip(fields,values)))
 fd,tmp=tempfile.mkstemp(prefix='.network-',dir=os.path.dirname(path),text=True)
 with os.fdopen(fd,'w',encoding='utf-8') as f: json.dump(data,f,ensure_ascii=False,indent=2)
 os.chmod(tmp,0o600); os.replace(tmp,path)
@@ -62,30 +60,16 @@ restore_network_state() {
     [[ -r "$NETWORK_STATE" ]] || return 0
     python3 - "$NETWORK_STATE" <<'PY'
 import json, subprocess, sys
-path=sys.argv[1]
-with open(path,encoding='utf-8') as f: d=json.load(f)
+with open(sys.argv[1],encoding='utf-8') as f: d=json.load(f)
 name=d.get('connection',''); interface=d.get('interface','eth0')
 if not name: raise SystemExit(0)
-def nm(*args):
-    return subprocess.run(['nmcli',*args],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
-# The original NetworkManager profile normally survives an update. If another
-# profile became active, explicitly restore the saved profile and its IPv4
-# properties instead of silently accepting DHCP.
-check=nm('-g','NAME','connection','show',name)
-if check.returncode:
-    print('Saved Ethernet profile no longer exists: '+name, file=sys.stderr); raise SystemExit(31)
-args=['connection','modify',name,
-      'ipv4.method',d.get('ipv4.method','auto'),
-      'ipv4.addresses',d.get('ipv4.addresses',''),
-      'ipv4.gateway',d.get('ipv4.gateway',''),
-      'ipv4.dns',d.get('ipv4.dns',''),
-      'ipv4.ignore-auto-dns',d.get('ipv4.ignore-auto-dns','no')]
-r=nm(*args)
-if r.returncode:
-    print(r.stderr.strip() or 'Ethernet settings could not be restored',file=sys.stderr); raise SystemExit(32)
+def nm(*args): return subprocess.run(['nmcli',*args],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
+if nm('-g','NAME','connection','show',name).returncode:
+    print('Saved Ethernet profile no longer exists: '+name,file=sys.stderr); raise SystemExit(31)
+r=nm('connection','modify',name,'ipv4.method',d.get('ipv4.method','auto'),'ipv4.addresses',d.get('ipv4.addresses',''),'ipv4.gateway',d.get('ipv4.gateway',''),'ipv4.dns',d.get('ipv4.dns',''),'ipv4.ignore-auto-dns',d.get('ipv4.ignore-auto-dns','no'))
+if r.returncode: print(r.stderr.strip() or 'Ethernet settings could not be restored',file=sys.stderr); raise SystemExit(32)
 r=nm('connection','up',name,'ifname',interface)
-if r.returncode:
-    print(r.stderr.strip() or 'Ethernet profile could not be activated',file=sys.stderr); raise SystemExit(33)
+if r.returncode: print(r.stderr.strip() or 'Ethernet profile could not be activated',file=sys.stderr); raise SystemExit(33)
 PY
 }
 
@@ -104,76 +88,58 @@ PY
 }
 
 stamp=$(date +%Y%m%d-%H%M%S)
-stage="$STAGE_ROOT/$sha"
-backup="$BACKUP_ROOT/$stamp-$sha"
-archive="$STAGE_ROOT/$sha.tar.gz"
+stage="$STAGE_ROOT/$sha"; backup="$BACKUP_ROOT/$stamp-$sha"; archive="$STAGE_ROOT/$sha.tar.gz"
 old_commit=""
 [[ -r "$STATE_DIR/firmware-state.json" ]] && old_commit=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("sha",""))' "$STATE_DIR/firmware-state.json" 2>/dev/null || true)
 
 rm -rf "$stage" "$archive"
-status download "Commit wird heruntergeladen"
+CURRENT_PHASE=download; status download "Commit wird heruntergeladen"
 if ! python3 - "$repo" "$sha" "$archive" <<'PY'
 import sys, urllib.error, urllib.request
-repo,sha,out=sys.argv[1:]; url=f"https://codeload.github.com/{repo}/tar.gz/{sha}"
-req=urllib.request.Request(url,headers={"User-Agent":"dab-touchscreen-updater"})
+repo,sha,out=sys.argv[1:]; url=f"https://codeload.github.com/{repo}/tar.gz/{sha}"; req=urllib.request.Request(url,headers={"User-Agent":"dab-touchscreen-updater"})
 try:
     with urllib.request.urlopen(req,timeout=30) as r, open(out,"wb") as f:
         while True:
             b=r.read(1024*1024)
             if not b: break
             f.write(b)
-except urllib.error.HTTPError as exc:
-    print(f"GitHub HTTP {exc.code}: Commit nicht gefunden oder Download nicht möglich", file=sys.stderr); raise SystemExit(20)
-except (urllib.error.URLError, TimeoutError, OSError) as exc:
-    print(f"Download nicht möglich: {exc}", file=sys.stderr); raise SystemExit(21)
+except urllib.error.HTTPError as exc: print(f"GitHub HTTP {exc.code}",file=sys.stderr); raise SystemExit(20)
+except (urllib.error.URLError,TimeoutError,OSError) as exc: print(f"Download nicht möglich: {exc}",file=sys.stderr); raise SystemExit(21)
 PY
-then
-    rm -f "$archive"; status failed "Update fehlgeschlagen: Commit nicht gefunden oder Download nicht möglich"; exit 20
-fi
+then rm -f "$archive"; status failed "Update fehlgeschlagen: Download"; exit 20; fi
 
 mkdir -p "$stage"
-if ! tar -xzf "$archive" -C "$stage" --strip-components=1; then rm -rf "$stage" "$archive"; status failed "Update fehlgeschlagen: Firmware-Archiv ist ungültig"; exit 22; fi
-rm -f "$archive"
-src="$stage/raspberry-pi"
-if [[ ! -f "$src/install.sh" || ! -f "$src/VERSION" || ! -f "$src/src/main.py" || ! -d "$src/tests" ]]; then rm -rf "$stage"; status failed "Update fehlgeschlagen: Projektstruktur ist ungültig"; exit 23; fi
+if ! tar -xzf "$archive" -C "$stage" --strip-components=1; then rm -rf "$stage" "$archive"; status failed "Update fehlgeschlagen: Firmware-Archiv ungültig"; exit 22; fi
+rm -f "$archive"; src="$stage/raspberry-pi"
+if [[ ! -f "$src/install.sh" || ! -f "$src/VERSION" || ! -f "$src/src/main.py" || ! -d "$src/tests" ]]; then rm -rf "$stage"; status failed "Update fehlgeschlagen: Projektstruktur ungültig"; exit 23; fi
 chmod 0755 "$src/install.sh"
+CURRENT_PHASE=verify; status verify "Download wird geprüft"
+if ! (cd "$src"; PYTHONPATH="$src" python3 -m compileall -q src scripts; PYTHONPATH="$src" python3 -m unittest discover -s tests -v); then rm -rf "$stage"; status failed "Update fehlgeschlagen: Vorabprüfung"; exit 24; fi
 
-status verify "Download wird geprüft"
-if ! (cd "$src"; PYTHONPATH="$src" python3 -m compileall -q src scripts; PYTHONPATH="$src" python3 -m unittest discover -s tests -v); then rm -rf "$stage"; status failed "Update fehlgeschlagen: Vorabprüfung fehlgeschlagen"; exit 24; fi
-
-run_apt=0
-candidate_packages=$(package_signature "$src/install.sh" 2>/dev/null || true)
-installed_packages=$(package_signature "$INSTALL_DIR/install.sh" 2>/dev/null || true)
+run_apt=0; candidate_packages=$(package_signature "$src/install.sh" 2>/dev/null || true); installed_packages=$(package_signature "$INSTALL_DIR/install.sh" 2>/dev/null || true)
 if [[ -z $candidate_packages || -z $installed_packages || $candidate_packages != "$installed_packages" ]]; then run_apt=1; fi
 
 rollback() {
-    rc=$?; trap - ERR
-    status rollback "Fehler erkannt – vorherige Installation wird wiederhergestellt"
+    rc=$?; failed_command=${BASH_COMMAND:-unbekannt}; trap - ERR
+    status rollback "Fehler in $CURRENT_PHASE (Exit $rc) – Rollback läuft"
     if [[ -d $backup ]]; then
-        rsync -a --delete "$backup/" "$INSTALL_DIR/"; chown -R root:root "$INSTALL_DIR"
-        restore_network_state || true
-        systemctl restart lightdm.service || true
-        status failed "Update fehlgeschlagen; Rollback durchgeführt"
-    else status failed "Update fehlgeschlagen; kein Backup verfügbar"; fi
+        rsync -a --delete "$backup/" "$INSTALL_DIR/" || true; chown -R root:root "$INSTALL_DIR" || true
+        restore_network_state || true; systemctl restart lightdm.service || true
+        status failed "Update fehlgeschlagen: $CURRENT_PHASE · Exit $rc · Rollback erfolgreich"
+    else status failed "Update fehlgeschlagen: $CURRENT_PHASE · Exit $rc · kein Backup"; fi
+    logger -t dab-firmware "Update $sha fehlgeschlagen: Phase=$CURRENT_PHASE Exit=$rc Befehl=$failed_command"
     exit "$rc"
 }
 trap rollback ERR
 
-status backup "Installation und Netzwerkeinstellungen werden gesichert"
-mkdir -p "$backup"; rsync -a "$INSTALL_DIR/" "$backup/"
-rm -f "$NETWORK_STATE"; save_network_state
-
+CURRENT_PHASE=backup; status backup "Installation und Netzwerkeinstellungen werden gesichert"
+mkdir -p "$backup"; rsync -a "$INSTALL_DIR/" "$backup/"; rm -f "$NETWORK_STATE"; save_network_state
+CURRENT_PHASE=install
 if (( run_apt )); then status install "Abhängigkeiten geändert – vollständige Installation"; "$src/install.sh" --no-restart
 else status install "Version wird installiert"; "$src/install.sh" --no-apt --no-restart; fi
-
-# Re-apply the exact Ethernet profile captured immediately before the update.
-# This is deliberately done before restarting the graphical session.
-status network "Ethernet-Konfiguration wird wiederhergestellt"
-restore_network_state
-
-status health "Installierte Version wird geprüft"
+CURRENT_PHASE=network; status network "Ethernet-Konfiguration wird wiederhergestellt"; restore_network_state
+CURRENT_PHASE=health; status health "Installierte Version wird geprüft"
 (cd "$INSTALL_DIR"; PYTHONPATH="$INSTALL_DIR" python3 -m compileall -q src scripts; PYTHONPATH="$INSTALL_DIR" python3 -m unittest discover -s tests -v)
-
 python3 - "$STATE_DIR/firmware-state.json" "$repo" "$sha" "$label" "$old_commit" <<'PY'
 import json,sys,time,os
 path,repo,sha,label,previous=sys.argv[1:]
@@ -181,11 +147,9 @@ with open(path,"w",encoding="utf-8") as f: json.dump({"repository":repo,"sha":sh
 os.chmod(path,0o640)
 PY
 chown "$SERVICE_USER:$SERVICE_USER" "$STATE_DIR/firmware-state.json"
-
-status restart "Oberfläche wird neu gestartet"
-systemctl restart lightdm.service
-sleep 8
-pgrep -u "$SERVICE_USER" -f '/usr/bin/python3 -m src.main' >/dev/null
-status success "Update erfolgreich installiert"
+CURRENT_PHASE=restart; status restart "Oberfläche wird neu gestartet"; systemctl restart lightdm.service; sleep 8
+# Match the application module independent of the exact python executable path.
+pgrep -u "$SERVICE_USER" -f 'python3 .*src\.main|python3 -m src\.main' >/dev/null
+CURRENT_PHASE=done; status success "Update erfolgreich installiert"
 ls -1dt "$BACKUP_ROOT"/* 2>/dev/null | tail -n +6 | xargs -r rm -rf
 rm -rf "$stage"; trap - ERR
