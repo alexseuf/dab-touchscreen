@@ -18,7 +18,9 @@ class TestMainWindow(FirmwareMainWindow):
         layout = root.layout()
         if isinstance(layout, QtWidgets.QBoxLayout):
             layout.setDirection(QtWidgets.QBoxLayout.TopToBottom)
-            layout.setStretch(0, 6)
+            # Ethernet should only consume the height its controls need. The
+            # MQTT frame starts immediately below and receives the free space.
+            layout.setStretch(0, 0)
             layout.setStretch(1, 1)
 
         ethernet = self.lan_dhcp.parentWidget()
@@ -49,8 +51,6 @@ class TestMainWindow(FirmwareMainWindow):
                 form.addWidget(field, row, 1, alignment=QtCore.Qt.AlignVCenter)
                 field.setFixedHeight(36)
 
-            # Keep the right-side controls at the top of the same grid rows.
-            # Their slightly smaller height removes the visual downward offset.
             form.addWidget(self.lan_refresh_button, 1, 2, 1, 2, alignment=QtCore.Qt.AlignTop)
             form.addWidget(self.lan_apply_button, 2, 2, 1, 2, alignment=QtCore.Qt.AlignTop)
             self.lan_refresh_button.setFixedHeight(34)
@@ -64,7 +64,11 @@ class TestMainWindow(FirmwareMainWindow):
             for row in range(1, 5):
                 form.setRowMinimumHeight(row, 36)
                 form.setRowStretch(row, 0)
-            form.setRowStretch(5, 1)
+            form.setRowStretch(5, 0)
+
+            # Remove the large unused area below the IPv4 rows.
+            ethernet.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
+            ethernet.setMaximumHeight(190)
 
         self.lan_prefix.setPlaceholderText("255.255.255.0")
         for label in root.findChildren(QtWidgets.QLabel):
@@ -81,12 +85,22 @@ class TestMainWindow(FirmwareMainWindow):
                 if widget is not None and widget is not self.lan_mqtt_status:
                     mqtt_layout.removeWidget(widget)
                     widget.hide()
+            mqtt_layout.setContentsMargins(10, 5, 10, 5)
+            mqtt_layout.setSpacing(3)
             title = QtWidgets.QLabel("Lokaler MQTT-Broker")
             title.setStyleSheet("font-size:16px;font-weight:bold")
             mqtt_layout.insertWidget(0, title)
-            self.lan_mqtt_status.setAlignment(QtCore.Qt.AlignVCenter | QtCore.Qt.AlignLeft)
-            self.lan_mqtt_status.setMinimumHeight(40)
-            self.lan_mqtt_status.setMaximumHeight(46)
+            self.lan_mqtt_status.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
+            self.lan_mqtt_status.setWordWrap(True)
+            self.lan_mqtt_status.setMinimumHeight(82)
+            self.lan_mqtt_status.setMaximumHeight(110)
+            hint = QtWidgets.QLabel(
+                "LAN wird als Broker-Adresse bevorzugt. WLAN bleibt als Recovery-Zugang verfügbar."
+            )
+            hint.setWordWrap(True)
+            hint.setStyleSheet("color:#9edcff;font-size:12px")
+            mqtt_layout.addWidget(hint)
+            mqtt_layout.addStretch(1)
 
         self._lan_mode_changed()
         return root
@@ -148,11 +162,12 @@ class TestMainWindow(FirmwareMainWindow):
         state = "Läuft" if broker["running"] else "Nicht erreichbar"
         self._broker_host = str(broker["host"])
         self.lan_mqtt_status.setText(
-            f"<table width='100%'><tr>"
-            f"<td width='28%'><span style='color:{color};font-size:20px'>●</span> <b>{state}</b></td>"
-            f"<td width='52%'><b>Broker-Adresse</b>&nbsp; mqtt://{html.escape(self._broker_host)}</td>"
-            f"<td width='20%'><b>Port</b>&nbsp; {broker['port']}</td>"
-            f"</tr></table>"
+            f"<span style='color:{color};font-size:20px'>●</span> <b>{state}</b>"
+            f"&nbsp;&nbsp;&nbsp; <b>Broker-Adresse:</b> mqtt://{html.escape(self._broker_host)}"
+            f"&nbsp;&nbsp;&nbsp; <b>Port:</b> {broker['port']}<br>"
+            f"<b>Bevorzugter Netzwerkweg:</b> {html.escape(str(broker['preferred']))}<br>"
+            f"<b>Erreichbar über:</b> {html.escape(str(broker['preferred']))} · "
+            f"{html.escape(self._broker_host)}:{broker['port']}"
         )
 
     def _apply_lan(self):
