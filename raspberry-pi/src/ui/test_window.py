@@ -127,9 +127,15 @@ class TestMainWindow(FirmwareMainWindow):
         if event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_F12:
             self._hide_touch_keyboard()
             return True
-        editable = obj in getattr(self, "lan_fields", ()) or obj is getattr(self, "wifi_password", None)
+        editable = obj in getattr(self, "lan_fields", ()) or obj is getattr(self, "wifi_password", None) or obj is getattr(self, "filter", None)
         if editable and event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_Escape:
             self._hide_touch_keyboard()
+            return True
+        if obj is getattr(self, "filter", None) and event.type() == QtCore.QEvent.MouseButtonPress:
+            obj.setFocus(QtCore.Qt.MouseFocusReason)
+            obj.deselect()
+            obj.setCursorPosition(obj.cursorPositionAt(event.pos()))
+            QtCore.QTimer.singleShot(0, lambda field=obj: self._show_touch_keyboard(field))
             return True
         if obj in getattr(self, "lan_fields", ()) and event.type() == QtCore.QEvent.MouseButtonPress:
             if getattr(self, "lan_dhcp", None) is not None and self.lan_dhcp.isChecked():
@@ -196,6 +202,7 @@ class TestMainWindow(FirmwareMainWindow):
         self.filter = QtWidgets.QLineEdit()
         self.filter.setPlaceholderText("Topic filtern …")
         self.filter.textChanged.connect(self._rebuild_topics)
+        self.filter.installEventFilter(self)
         clear = QtWidgets.QPushButton("Liste leeren")
         clear.setToolTip("Aktuelle Explorer-Liste leeren; neue MQTT-Nachrichten werden danach wieder angezeigt")
         clear.clicked.connect(self._clear_mqtt_explorer)
