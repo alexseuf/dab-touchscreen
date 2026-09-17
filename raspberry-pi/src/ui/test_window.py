@@ -24,8 +24,6 @@ class TestMainWindow(FirmwareMainWindow):
         ethernet = self.lan_dhcp.parentWidget()
         form = ethernet.layout() if ethernet is not None else None
         if isinstance(form, QtWidgets.QGridLayout):
-            # Compact two-column layout sized for the 800x480 display. The
-            # fourth IPv4 field must stay above Squeekboard's upper edge.
             form.setContentsMargins(7, 2, 7, 2)
             form.setHorizontalSpacing(6)
             form.setVerticalSpacing(1)
@@ -104,6 +102,12 @@ class TestMainWindow(FirmwareMainWindow):
             self._hide_touch_keyboard()
 
     def eventFilter(self, obj, event):
+        editable = obj in getattr(self, "lan_fields", ()) or obj is getattr(self, "wifi_password", None)
+        if editable and event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_Escape:
+            # The DAB Squeekboard key labelled "⌨↓" emits Escape. Consume it so
+            # it never alters/navigation-closes the kiosk and hide only the OSK.
+            self._hide_touch_keyboard()
+            return True
         if obj in getattr(self, "lan_fields", ()) and event.type() == QtCore.QEvent.MouseButtonPress:
             if getattr(self, "lan_dhcp", None) is not None and self.lan_dhcp.isChecked():
                 obj.clearFocus()
