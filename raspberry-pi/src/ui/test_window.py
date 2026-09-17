@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import time
 
 from PyQt5 import QtCore, QtWidgets
 
@@ -112,3 +113,19 @@ class TestMainWindow(FirmwareMainWindow):
         self.explorer.clear()
         self.topics.clear()
         self.detail.clear()
+
+    def _refresh(self):
+        # Keep the compact bottom status line useful during commissioning: show
+        # the configured MQTT broker address only while the client is connected.
+        for sid, card in self.cards.items():
+            card.set_value(self.model.get(sid))
+        for sid, curve in self.curves.items():
+            pts = self.samples[sid]
+            curve.setData([x for x, _ in pts], [y for _, y in pts])
+        connected = bool(self.mqtt and self.mqtt.connected)
+        if connected:
+            host = str(self.config.get("mqtt", {}).get("host", "")).strip()
+            broker = f" {host}" if host else ""
+            self.status.setText(f"MQTT: verbunden{broker}   {time.strftime('%H:%M:%S')}")
+        else:
+            self.status.setText(f"MQTT: nicht verbunden   {time.strftime('%H:%M:%S')}")
