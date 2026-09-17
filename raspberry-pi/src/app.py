@@ -28,7 +28,11 @@ def run(fullscreen=None):
     try:history=HistoryStore()
     except (OSError,sqlite3.Error):history=HistoryStore('/tmp/dab-touchscreen-history.sqlite3')
     app=QtWidgets.QApplication(sys.argv);app.setApplicationName('DAB Touchscreen')
-    app.setFont(QtGui.QFont('DejaVu Sans',14));window=TestMainWindow(model,cfg,history)
+    app.setFont(QtGui.QFont('DejaVu Sans',14))
+    # Touch-friendly confirmation dialogs: the default Yes/No buttons are too
+    # narrow on the 800x480 display.
+    app.setStyleSheet(app.styleSheet() + "\nQMessageBox QPushButton { min-width: 92px; min-height: 46px; padding: 4px 10px; }")
+    window=TestMainWindow(model,cfg,history)
     mqtt=MqttService(cfg['mqtt']['host'],cfg['mqtt']['port'],model,window.explorer_event.emit,os.environ.get('DAB_MQTT_USERNAME'),os.environ.get('DAB_MQTT_PASSWORD'));window.set_mqtt(mqtt);mqtt.start()
     demo=DemoPublisher(model,bool(cfg['app'].get('demo_data',True)));window.data_mode_changed.connect(demo.set_enabled)
     use_fullscreen=fullscreen if fullscreen is not None else cfg['app'].get('fullscreen',True)

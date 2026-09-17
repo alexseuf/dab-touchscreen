@@ -20,7 +20,7 @@ if [[ ${EUID} -ne 0 ]]; then echo "Bitte mit sudo ausführen: sudo ./install.sh"
 . /etc/os-release
 [[ ${VERSION_CODENAME:-} == bookworm ]] || echo "WARNUNG: Getestet wurde Raspberry Pi OS Bookworm; erkannt: ${PRETTY_NAME:-unbekannt}" >&2
 
-PACKAGES=(network-manager policykit-1 dbus-user-session mosquitto mosquitto-clients python3 python3-yaml python3-pyqt5 python3-pyqtgraph python3-paho-mqtt sqlite3 lightdm labwc xwayland wf-panel-pi wfplug-squeek squeekboard qtwayland5 wlr-randr autotouch raspberrypi-ui-mods fonts-dejavu-core avahi-daemon rsync ca-certificates util-linux)
+PACKAGES=(network-manager policykit-1 dbus-user-session mosquitto mosquitto-clients python3 python3-yaml python3-pyqt5 python3-pyqtgraph python3-paho-mqtt sqlite3 lightdm labwc xwayland wf-panel-pi wfplug-squeek squeekboard wayvnc qtwayland5 wlr-randr autotouch raspberrypi-ui-mods fonts-dejavu-core avahi-daemon rsync ca-certificates util-linux)
 if (( RUN_APT )); then apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y "${PACKAGES[@]}"; fi
 DEBIAN_FRONTEND=noninteractive apt-get remove -y lxplug-updater wfplug-updater 2>/dev/null || true
 
@@ -74,14 +74,6 @@ install -o root -g root -m 0644 "$ROOT_DIR/system/40-dab-touchscreen-rotate.conf
 install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-networkmanager.rules" /etc/polkit-1/rules.d/49-dab-networkmanager.rules
 install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-firmware-update.rules" /etc/polkit-1/rules.d/49-dab-firmware-update.rules
 
-# DAB keyboard override: install both compact and wide German variants because
-# Squeekboard chooses the shape dynamically. The extra key emits Escape; the
-# UI consumes Escape in editable fields and hides the OSK through OSK0 D-Bus.
-install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 "/home/$SERVICE_USER/.local/share/squeekboard/keyboards"
-for layout in de.yaml de_wide.yaml; do
-    install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0644 "$ROOT_DIR/system/squeekboard/$layout" "/home/$SERVICE_USER/.local/share/squeekboard/keyboards/$layout"
-done
-
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 "/home/$SERVICE_USER/.config"
 cat >"/home/$SERVICE_USER/.config/labwc-autostart-notifications-disabled" <<'EOF'
 # DAB kiosk marker: desktop notification bubbles intentionally disabled.
@@ -97,6 +89,10 @@ Hidden=true
 EOF
  chown "$SERVICE_USER:$SERVICE_USER" "/home/$SERVICE_USER/.config/autostart/$desktop"
 done
+
+# Configure system Squeekboard layouts and WayVNC while running as root. The
+# graphical clients themselves are started only after LightDM creates Wayland.
+"$INSTALL_DIR/scripts/configure-touch-desktop.sh" "$SERVICE_USER"
 
 python3 -m compileall -q "$INSTALL_DIR/src" "$INSTALL_DIR/scripts"
 (cd "$INSTALL_DIR"; PYTHONPATH="$INSTALL_DIR${PYTHONPATH:+:$PYTHONPATH}" python3 -m unittest discover -s tests -v)
