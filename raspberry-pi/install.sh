@@ -74,10 +74,13 @@ install -o root -g root -m 0644 "$ROOT_DIR/system/40-dab-touchscreen-rotate.conf
 install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-networkmanager.rules" /etc/polkit-1/rules.d/49-dab-networkmanager.rules
 install -o root -g root -m 0644 "$ROOT_DIR/system/49-dab-firmware-update.rules" /etc/polkit-1/rules.d/49-dab-firmware-update.rules
 
-# DAB keyboard override: the extra key at the right edge emits Escape. The UI
-# catches Escape in editable fields and hides Squeekboard through OSK0 D-Bus.
+# DAB keyboard override: install both compact and wide German variants because
+# Squeekboard chooses the shape dynamically. The extra key emits Escape; the
+# UI consumes Escape in editable fields and hides the OSK through OSK0 D-Bus.
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 "/home/$SERVICE_USER/.local/share/squeekboard/keyboards"
-install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0644 "$ROOT_DIR/system/squeekboard/de_wide.yaml" "/home/$SERVICE_USER/.local/share/squeekboard/keyboards/de_wide.yaml"
+for layout in de.yaml de_wide.yaml; do
+    install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0644 "$ROOT_DIR/system/squeekboard/$layout" "/home/$SERVICE_USER/.local/share/squeekboard/keyboards/$layout"
+done
 
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 "/home/$SERVICE_USER/.config"
 cat >"/home/$SERVICE_USER/.config/labwc-autostart-notifications-disabled" <<'EOF'
