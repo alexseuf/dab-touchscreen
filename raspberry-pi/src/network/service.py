@@ -44,17 +44,17 @@ def wifi_status(interface='wlan0'):
 
 def connect_wifi(ssid,password,interface='wlan0'):
     if not ssid: raise ValueError('SSID fehlt')
-    # Prefer an existing NetworkManager Wi-Fi profile so reconnecting does not
-    # require the WPA password to be entered again.
-    profiles=nmcli('-g','NAME,TYPE,802-11-wireless.ssid','connection','show')
+    profiles=nmcli('-g','NAME,TYPE','connection','show')
     for line in profiles.stdout.splitlines():
-        fields=line.rsplit(':',2)
-        if len(fields)==3 and fields[1] in ('802-11-wireless','wifi') and fields[2]==ssid:
-            activated=nmcli('connection','up',fields[0],'ifname',interface,timeout=45)
+        fields=line.rsplit(':',1)
+        if len(fields)!=2 or fields[1] not in ('802-11-wireless','wifi'): continue
+        name=fields[0]
+        saved_ssid=nmcli('-g','802-11-wireless.ssid','connection','show',name)
+        if saved_ssid.returncode==0 and saved_ssid.stdout.strip()==ssid:
+            activated=nmcli('connection','up',name,'ifname',interface,timeout=45)
             if activated.returncode==0:return activated
     if not password:
-        result=subprocess.CompletedProcess(['nmcli'],10,'','Für dieses WLAN ist kein gespeichertes Profil vorhanden. Bitte Passwort eingeben.')
-        return result
+        return subprocess.CompletedProcess(['nmcli'],10,'','Für dieses WLAN ist kein gespeichertes Profil vorhanden. Bitte Passwort eingeben.')
     return nmcli('device','wifi','connect',ssid,'password',password,'ifname',interface,timeout=45)
 
 def disconnect_wifi(interface='wlan0'):return nmcli('device','disconnect',interface,timeout=30)
