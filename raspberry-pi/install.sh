@@ -20,12 +20,25 @@ if [[ ${EUID} -ne 0 ]]; then echo "Bitte mit sudo ausführen: sudo ./install.sh"
 . /etc/os-release
 [[ ${VERSION_CODENAME:-} == bookworm ]] || echo "WARNUNG: Getestet wurde Raspberry Pi OS Bookworm; erkannt: ${PRETTY_NAME:-unbekannt}" >&2
 
-PACKAGES=(network-manager policykit-1 dbus-user-session mosquitto mosquitto-clients python3 python3-yaml python3-pyqt5 python3-pyqtgraph python3-paho-mqtt sqlite3 lightdm labwc xwayland wf-panel-pi wfplug-squeek squeekboard wayvnc qtwayland5 wlr-randr autotouch raspberrypi-ui-mods fonts-dejavu-core avahi-daemon rsync ca-certificates util-linux)
+PACKAGES=(network-manager policykit-1 dbus-user-session mosquitto mosquitto-clients python3 python3-yaml python3-pyqt5 python3-pyqtgraph python3-paho-mqtt sqlite3 lightdm labwc xwayland wf-panel-pi wfplug-squeek squeekboard wayvnc qtwayland5 wlr-randr autotouch raspberrypi-ui-mods fonts-dejavu-core avahi-daemon rsync ca-certificates util-linux i2c-tools)
 if (( RUN_APT )); then apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y "${PACKAGES[@]}"; fi
 DEBIAN_FRONTEND=noninteractive apt-get remove -y lxplug-updater wfplug-updater 2>/dev/null || true
 
+# Enable the Raspberry Pi ARM I2C controller persistently. Bookworm uses
+# /boot/firmware/config.txt; the legacy path is kept as a compatibility fallback.
+BOOT_CONFIG=/boot/firmware/config.txt
+[[ -f "$BOOT_CONFIG" ]] || BOOT_CONFIG=/boot/config.txt
+if [[ ! -f "$BOOT_CONFIG" ]]; then
+    echo "WARNUNG: Raspberry-Pi-Bootkonfiguration nicht gefunden; I2C konnte nicht aktiviert werden." >&2
+else
+    # Remove disabled/duplicate i2c_arm entries, then install one unambiguous setting.
+    sed -i -E '/^[[:space:]]*dtparam[[:space:]]*=[[:space:]]*i2c_arm[[:space:]]*=/d' "$BOOT_CONFIG"
+    printf '\n# DAB Touchscreen: I2C for DS3231 RTC\ndtparam=i2c_arm=on\n' >>"$BOOT_CONFIG"
+    modprobe i2c-dev 2>/dev/null || true
+fi
+
 if ! id "$SERVICE_USER" >/dev/null 2>&1; then useradd --create-home --shell /bin/bash "$SERVICE_USER"; fi
-for group in audio video input render netdev; do getent group "$group" >/dev/null && usermod -a -G "$group" "$SERVICE_USER"; done
+for group in audio video input render netdev i2c; do getent group "$group" >/dev/null && usermod -a -G "$group" "$SERVICE_USER"; done
 
 install -d -o root -g root -m 0755 "$INSTALL_DIR"
 if [[ $ROOT_DIR != "$INSTALL_DIR" ]]; then rsync -a --delete --exclude=.git --exclude=secrets.env --exclude='__pycache__' --exclude='*.pyc' "$ROOT_DIR/" "$INSTALL_DIR/"; fi
