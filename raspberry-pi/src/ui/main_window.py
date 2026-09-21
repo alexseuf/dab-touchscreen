@@ -160,7 +160,7 @@ class MainWindow(QtWidgets.QMainWindow):
             plot.scene().sigMouseClicked.connect(lambda event,g=group:self._focus_plot(g,event))
             self.plots[group]=plot;lay.addWidget(plot,1)
             for curve_index,sid in enumerate(signals):
-                self.curves[sid]=plot.plot(name=self.model.definitions[sid]['label'],pen=pg.mkPen(colors[curve_index],width=2))
+                self.curves[sid]=plot.plot(name=self.model.definitions[sid]['label'],pen=pg.mkPen(colors[curve_index % len(colors)],width=2))
         return root
     def _set_window(self,seconds): self.plots['voltage'].setXRange(time.time()-seconds,time.time(),padding=0)
     def _reset_plots(self):
