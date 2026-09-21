@@ -8,7 +8,7 @@ from src.network.service import broker_status, ethernet_status, set_ethernet, wi
 SIGNAL_GROUPS={
  'Netz':['grid_voltage_l1','grid_voltage_l2','grid_voltage_l3','grid_current_l1','grid_current_l2','grid_current_l3','grid_frequency','input_power'],
  'Leistungspfad':['dc_link_voltage','output_voltage','output_current','output_power'],
- 'Temperaturen':['temp_pfc','temp_dab_primary','temp_dab_secondary','temp_inductor','temp_transformer']}
+ 'Temperaturen':['temp_pfc','temp_dab_primary','temp_dab_secondary','temp_pcb_primary','temp_pcb_secondary','temp_inductor','temp_transformer']}
 
 def eye_icon(slashed=False):
     pixmap=QtGui.QPixmap(32,24);pixmap.fill(QtCore.Qt.transparent)
@@ -127,12 +127,12 @@ class MainWindow(QtWidgets.QMainWindow):
         body.addWidget(path_box,7)
         out_box=QtWidgets.QFrame();out_box.setObjectName('section');out=QtWidgets.QVBoxLayout(out_box);out.setContentsMargins(8,5,8,5);out.setSpacing(4)
         title=QtWidgets.QLabel('DC-Ausgang');title.setStyleSheet('font-size:17px;font-weight:bold');out.addWidget(title)
-        for sid in ['output_voltage','output_current','output_power']:
+        for sid in ['output_voltage','output_current','output_power','earth_voltage']:
             metric=CompactValue(self.model.definitions[sid].get('label',sid),True);self.cards[sid]=metric;out.addWidget(metric)
         out.addStretch(1);body.addWidget(out_box,5)
         temp_box=QtWidgets.QFrame();temp_box.setObjectName('section');temps=QtWidgets.QGridLayout(temp_box);temps.setContentsMargins(8,4,8,4);temps.setHorizontalSpacing(8);temps.setVerticalSpacing(1)
         temp_title=QtWidgets.QLabel('Temperaturen');temp_title.setStyleSheet('font-size:15px;font-weight:bold;color:#55d6ff');temps.addWidget(temp_title,0,0,1,5)
-        for col,sid in enumerate(['temp_pfc','temp_inductor','temp_dab_primary','temp_transformer','temp_dab_secondary']):
+        for col,sid in enumerate(['temp_pfc','temp_inductor','temp_dab_primary','temp_dab_secondary','temp_pcb_primary','temp_pcb_secondary','temp_transformer']):
             metric=CompactValue(self.model.definitions[sid].get('label',sid),True);self.cards[sid]=metric;temps.addWidget(metric,1,col)
         outer.addWidget(temp_box,1);return root
 
@@ -146,7 +146,7 @@ class MainWindow(QtWidgets.QMainWindow):
             'voltage':('Spannung','V',['grid_voltage_l1','grid_voltage_l2','grid_voltage_l3','dc_link_voltage','output_voltage']),
             'current':('Strom','A',['grid_current_l1','grid_current_l2','grid_current_l3','output_current']),
             'power':('Leistung','W',['grid_power_l1','grid_power_l2','grid_power_l3','input_power','output_power']),
-            'temperature':('Temperatur','°C',['temp_pfc','temp_dab_primary','temp_dab_secondary','temp_inductor','temp_transformer']),
+            'temperature':('Temperatur','°C',['temp_pfc','temp_dab_primary','temp_dab_secondary','temp_pcb_primary','temp_pcb_secondary','temp_inductor','temp_transformer']),
         }
         colors=['#00b4d8','#90e0ef','#9b5de5','#ffb703','#e63946'];self.plots={};self.curves={}
         first=None
