@@ -1,5 +1,4 @@
 from __future__ import annotations
-import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from threading import RLock
@@ -25,28 +24,15 @@ class DataModel:
 
     def subscribe(self, callback): self._callbacks.append(callback)
 
-    @staticmethod
-    def _numeric_payload(payload: bytes | str) -> float:
-        text = payload.decode() if isinstance(payload, bytes) else str(payload)
-        text = text.strip()
-        if text.startswith('{'):
-            parsed = json.loads(text)
-            value = parsed.get('value')
-        else:
-            value = text
-        if isinstance(value, str):
-            value = value.strip().replace(',', '.')
-        return float(value)
-
     def update_topic(self, topic: str, payload: bytes | str, timestamp=None) -> SignalValue | None:
         signal_id = self.topic_to_id.get(topic)
         if not signal_id: return None
         definition = self.definitions[signal_id]
         now = timestamp or datetime.now(timezone.utc)
         try:
-            value = self._numeric_payload(payload)
+            value = float(payload.decode() if isinstance(payload, bytes) else payload)
             quality = 'valid'
-        except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+        except (ValueError, TypeError, UnicodeDecodeError):
             value, quality = None, 'invalid'
         item = SignalValue(signal_id, value, definition.get('unit',''), topic, now, quality)
         with self._lock: self._values[signal_id] = item
