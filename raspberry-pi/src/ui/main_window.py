@@ -148,7 +148,7 @@ class MainWindow(QtWidgets.QMainWindow):
             'power':('Leistung','W',['grid_power_l1','grid_power_l2','grid_power_l3','input_power','output_power']),
             'temperature':('Temperatur','°C',['temp_inductor','temp_pfc','temp_pcb_primary','temp_dab_primary','temp_transformer','temp_dab_secondary','temp_pcb_secondary']),
         }
-        colors=['#00b4d8','#90e0ef','#9b5de5','#ffb703','#e63946'];self.plots={};self.curves={}
+        colors=['#00b4d8','#90e0ef','#9b5de5','#ffb703','#e63946','#2a9d8f','#f4a261'];self.plots={};self.curves={}
         first=None
         for index,(group,(label,unit,signals)) in enumerate(groups.items()):
             plot=pg.PlotWidget(axisItems={'bottom':pg.DateAxisItem(orientation='bottom')});plot.setMinimumHeight(82)
