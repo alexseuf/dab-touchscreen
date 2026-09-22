@@ -140,3 +140,62 @@ def set_ethernet(interface,method,address='',prefix='24',gateway='',dns=''):
         else:restore=['connection','modify',connection,'ipv4.method','auto','ipv4.addresses','','ipv4.gateway','','ipv4.dns','','ipv4.ignore-auto-dns','no']
         nmcli(*restore);nmcli('connection','up',connection,'ifname',interface,timeout=45);activated.stderr=(activated.stderr or '')+'\nVorherige Ethernet-Konfiguration wurde wiederhergestellt.'
     return activated
+
+
+def bridge_status(bridge='br0'):
+    """Return the current DAB bridge state without requiring a USB NIC."""
+    link=subprocess.run(['ip','-brief','link','show','dev',bridge],text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,check=False)
+    if link.returncode:
+        return {'configured':False,'bridge':bridge,'ipv4':'—','members':[]}
+    addr=subprocess.run(['ip','-4','-brief','address','show','dev',bridge],text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,check=False).stdout.split()
+    ipv4=next((part for part in addr if '/' in part),'—')
+    members=[]
+    try:
+        members=sorted(os.listdir(f'/sys/class/net/{bridge}/brif'))
+    except OSError:
+        pass
+    return {'configured':True,'bridge':bridge,'ipv4':ipv4,'members':members}
+
+def configure_usb_ethernet_bridge(address='192.168.2.138',prefix='24',lan_interface='eth0',bridge='br0'):
+    """Create a transparent L2 bridge between onboard LAN and the detected USB NIC.
+
+    The management address lives on br0. No gateway/DNS/default route is installed,
+    so WLAN remains the Internet and recovery path. If no USB NIC is present,
+    nothing is changed.
+    """
+    adapters=usb_ethernet_status()
+    if not adapters:
+        raise ValueError('Kein USB-Ethernet-Adapter erkannt; bestehendes LAN bleibt unverändert')
+    usb_interface=adapters[0]['interface']
+    ip=ipaddress.IPv4Address(address.strip());prefix_int=int(prefix)
+    if not 1<=prefix_int<=32:raise ValueError('Prefix muss zwischen 1 und 32 liegen')
+
+    bridge_profile='dab-br0'
+    profiles=nmcli('-g','NAME,TYPE','connection','show').stdout.splitlines()
+    if not any(line.rsplit(':',1)[0]==bridge_profile for line in profiles if ':' in line):
+        created=nmcli('connection','add','type','bridge','ifname',bridge,'con-name',bridge_profile)
+        if created.returncode:return created
+    changed=nmcli('connection','modify',bridge_profile,
+        'ipv4.method','manual','ipv4.addresses',f'{ip}/{prefix_int}',
+        'ipv4.gateway','','ipv4.dns','','ipv4.ignore-auto-dns','yes',
+        'ipv4.never-default','yes','ipv6.method','disabled')
+    if changed.returncode:return changed
+
+    def active_or_create_slave(interface,profile_name):
+        shown=nmcli('-g','GENERAL.CONNECTION','device','show',interface)
+        connection=_field(shown.stdout)
+        if connection in ('','--'):
+            added=nmcli('connection','add','type','ethernet','ifname',interface,'con-name',profile_name)
+            if added.returncode:return added
+            connection=profile_name
+        return nmcli('connection','modify',connection,'master',bridge_profile,'slave-type','bridge')
+
+    onboard=active_or_create_slave(lan_interface,'dab-br0-eth0')
+    if onboard.returncode:return onboard
+    usb=active_or_create_slave(usb_interface,f'dab-br0-{usb_interface}')
+    if usb.returncode:return usb
+    up=nmcli('connection','up',bridge_profile,timeout=45)
+    if up.returncode:return up
+    nmcli('device','connect',lan_interface,timeout=30)
+    nmcli('device','connect',usb_interface,timeout=30)
+    return up
