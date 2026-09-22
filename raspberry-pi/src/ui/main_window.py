@@ -266,7 +266,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wifi_list.clear();self.wifi_list.addItems(networks);self.wifi_scan_button.setEnabled(True);self.wifi_result.setText(f'{len(networks)} WLAN-Netz(e) gefunden' if networks else 'Keine WLAN-Netze gefunden');self._refresh_wifi_status()
     def _wifi_selected(self):
         item=self.wifi_list.currentItem()
-        if item:self.wifi_ssid.setText(item.text().split(':',1)[0])
+        if item:
+            self.wifi_ssid.setText(item.text().split(':',1)[0])
+            # Passwords remain in NetworkManager, not in the UI.  A blank
+            # field therefore means "reuse saved credentials" for a known
+            # profile; it must not be reported as an invalid new password.
+            self.wifi_password.clear()
     def _show_touch_keyboard(self,target=None):
         (target or self.wifi_password).setFocus(QtCore.Qt.MouseFocusReason)
         if os.environ.get('XDG_SESSION_TYPE')=='wayland' or os.environ.get('WAYLAND_DISPLAY'):
@@ -320,10 +325,15 @@ class MainWindow(QtWidgets.QMainWindow):
         ssid=self.wifi_ssid.text().strip()
         if not ssid:self.wifi_result.setText('Bitte zuerst ein WLAN auswählen');return
         selected=self.wifi_list.currentItem();security=selected.text().upper() if selected else ''
-        if ('WPA' in security or 'WEP' in security) and len(self.wifi_password.text())<8:
+        password=self.wifi_password.text()
+        # connect_wifi() first tries an existing NetworkManager profile.  Only
+        # validate a password when the operator actually entered one.  This
+        # avoids the misleading "Passwort zu kurz" message for saved WLANs.
+        if password and ('WPA' in security or 'WEP' in security) and len(password)<8:
             self.wifi_result.setText("<span style='color:#e63946;font-size:22px'>●</span> <b>Passwort zu kurz</b><br>WPA/WPA2 benötigt mindestens 8 Zeichen.");return
         self._hide_touch_keyboard()
-        self.wifi_result.setText(f'Verbinde mit {ssid} …');self._run_worker(connect_wifi,(ssid,self.wifi_password.text(),self.config['network']['wifi_interface']),self._connection_finished)
+        self.wifi_result.setText(f'Verbindung mit {ssid} wird hergestellt …')
+        self._run_worker(connect_wifi,(ssid,password,self.config['network']['wifi_interface']),self._connection_finished)
     def _disconnect_wifi(self):self.wifi_result.setText('WLAN wird getrennt …');self._run_worker(disconnect_wifi,(self.config['network']['wifi_interface'],),self._connection_finished)
     def _connection_finished(self,p):
         self.wifi_password.clear();self.wifi_result.setText((p.stdout or p.stderr).strip() or ('Aktion erfolgreich' if p.returncode==0 else 'Aktion fehlgeschlagen'));QtCore.QTimer.singleShot(800,self._refresh_wifi_status)
