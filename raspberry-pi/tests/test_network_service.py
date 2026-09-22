@@ -32,13 +32,19 @@ class EthernetConfigurationTest(unittest.TestCase):
         self.assertEqual('',status['dns'])
 
 
+    @patch('src.network.service.subprocess.run')
     @patch('src.network.service.nmcli')
-    def test_inactive_ethernet_uses_existing_wired_profile(self, nmcli):
-        nmcli.side_effect=[
-            result('20 (unavailable)\n\n\n\n'),
-            result('Kabelgebundene Verbindung 1:802-3-ethernet\nWLAN:wifi\n'),
-            result('auto\n\n\n\n'),
-        ]
+    def test_inactive_ethernet_uses_existing_wired_profile(self, nmcli, run):
+        def side(*args, **kwargs):
+            key=' '.join(args)
+            if 'GENERAL.STATE' in key: return result('20 (unavailable)\n')
+            if 'GENERAL.CONNECTION' in key: return result('--\n')
+            if args[:3] == ('-g','NAME,TYPE','connection'):
+                return result('Kabelgebundene Verbindung 1:802-3-ethernet\nWLAN:wifi\n')
+            if 'ipv4.method' in key: return result('auto\n')
+            return result('')
+        nmcli.side_effect=side
+        run.return_value=result('')
         status=ethernet_status('eth0')
         self.assertEqual('Kabelgebundene Verbindung 1',status['connection'])
         self.assertEqual('auto',status['method'])
