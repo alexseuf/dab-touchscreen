@@ -85,7 +85,7 @@ class FirmwareMainWindow(MainWindow):
 
         right = QtWidgets.QFrame(); right.setObjectName("section"); right_layout = QtWidgets.QVBoxLayout(right); right_layout.setContentsMargins(10, 7, 10, 7); right_layout.setSpacing(6)
         heading = QtWidgets.QLabel("Hinweise"); heading.setStyleSheet("font-size:17px;font-weight:bold"); right_layout.addWidget(heading)
-        info = QtWidgets.QLabel("Stable = veröffentlichte Releases. Main = aktueller Hauptstand. TEST = Entwicklungszweige feature/*.\n\nDas Repository kann links geändert werden. Installiert werden aus Sicherheitsgründen nur Versionen aus alexseuf/dab-touchscreen.\n\nVor der Installation wird der exakte Commit geprüft und ein Backup erstellt. Danach folgen Installation, Health-Check und Neustart.\n\nSchlägt ein Schritt fehl, wird automatisch die vorherige Installation wiederhergestellt.")
+        info = QtWidgets.QLabel("Stable = veröffentlichte Releases. Main = aktueller Hauptstand. TEST = Entwicklungszweige feature/* und development/*.\n\nDas Repository kann links geändert werden. Installiert werden aus Sicherheitsgründen nur Versionen aus alexseuf/dab-touchscreen.\n\nVor der Installation wird der exakte Commit geprüft und ein Backup erstellt. Danach folgen Installation, Health-Check und Neustart.\n\nSchlägt ein Schritt fehl, wird automatisch die vorherige Installation wiederhergestellt.")
         info.setWordWrap(True); info.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft); right_layout.addWidget(info, 1)
         outer.addWidget(left, 3); outer.addWidget(right, 2); return root
 
@@ -224,7 +224,7 @@ class _FirmwareDiscoveryWorker(QtCore.QRunnable):
             branch_map = {item.get("name", ""): item.get("commit", {}).get("sha", "") for item in branches}
             if "main" in branch_map:
                 sha = branch_map["main"]; versions.append({"kind":"main","name":"main","ref":"main","sha":sha,"label":f"Main · {sha[:7]}"})
-            for name in sorted(n for n in branch_map if n.startswith("feature/")):
+            for name in sorted(n for n in branch_map if n.startswith(("feature/","development/"))):
                 sha = branch_map[name]; versions.append({"kind":"test","name":name,"ref":name,"sha":sha,"label":f"TEST · {name} · {sha[:7]}"})
             self.signals.result.emit({"versions":versions})
         except Exception as exc: self.signals.error.emit(str(exc))
