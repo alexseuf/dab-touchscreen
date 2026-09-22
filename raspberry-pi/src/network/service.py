@@ -64,7 +64,9 @@ def _field(output):return next((line.strip() for line in output.splitlines() if 
 def ethernet_status(interface='eth0'):
     shown=nmcli('-g','GENERAL.STATE,GENERAL.CONNECTION,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS','device','show',interface);rows=[line.strip() for line in shown.stdout.splitlines()];connection=rows[1] if len(rows)>1 else ''
     if not connection or connection=='--':
-        profiles=nmcli('-g','NAME,TYPE','connection','show');connection=next((line.rsplit(':',1)[0] for line in profiles.stdout.splitlines() if line.rsplit(':',1)[-1] in ('802-3-ethernet','ethernet')),'')
+        profiles=nmcli('-g','NAME,TYPE','connection','show')
+        allowed=('bridge',) if interface.startswith('br') else ('802-3-ethernet','ethernet')
+        connection=next((line.rsplit(':',1)[0] for line in profiles.stdout.splitlines() if line.rsplit(':',1)[-1] in allowed),'')
     configured=nmcli('-g','ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns','connection','show',connection) if connection and connection!='--' else None;settings=[line.strip() for line in configured.stdout.splitlines()] if configured else [];live_address=next((row for row in rows[2:] if '/' in row),'');address=(settings[1] if len(settings)>1 else '') or live_address;ip,prefix=(address.split('/',1)+['24'])[:2] if address else ('','24');gateway=(settings[2] if len(settings)>2 else '') or (rows[3] if len(rows)>3 else '');dns=(settings[3] if len(settings)>3 else '') or ', '.join(row for row in rows[4:] if row);method=settings[0] if settings else 'auto'
     return {'interface':interface,'state':rows[0] if rows else 'nicht verfügbar','connection':connection,'method':method,'address':ip,'prefix':prefix,'gateway':gateway,'dns':dns,'live_address':live_address}
 
@@ -136,11 +138,16 @@ def set_ethernet(interface,method,address='',prefix='24',gateway='',dns=''):
     else:args += ['ipv4.method','auto','ipv4.addresses','','ipv4.gateway','','ipv4.dns','','ipv4.ignore-auto-dns','no']
     changed=nmcli(*args)
     if changed.returncode:return changed
-    activated=nmcli('connection','up',connection,'ifname',interface,timeout=45)
+    # Bridge profiles are activated by connection name. Supplying "ifname br0"
+    # can make NetworkManager reject activation and trigger our rollback to auto.
+    activated=nmcli('connection','up',connection,timeout=45) if interface.startswith('br') else nmcli('connection','up',connection,'ifname',interface,timeout=45)
     if activated.returncode:
         if status['method']=='manual' and status['address']:restore=['connection','modify',connection,'ipv4.method','manual','ipv4.addresses',f"{status['address']}/{status['prefix']}",'ipv4.gateway',status['gateway'],'ipv4.dns',status['dns'].replace(' ',''),'ipv4.ignore-auto-dns','yes']
         else:restore=['connection','modify',connection,'ipv4.method','auto','ipv4.addresses','','ipv4.gateway','','ipv4.dns','','ipv4.ignore-auto-dns','no']
-        nmcli(*restore);nmcli('connection','up',connection,'ifname',interface,timeout=45);activated.stderr=(activated.stderr or '')+'\nVorherige Ethernet-Konfiguration wurde wiederhergestellt.'
+        nmcli(*restore)
+        if interface.startswith('br'): nmcli('connection','up',connection,timeout=45)
+        else: nmcli('connection','up',connection,'ifname',interface,timeout=45)
+        activated.stderr=(activated.stderr or '')+'\nVorherige Ethernet-Konfiguration wurde wiederhergestellt.'
     return activated
 
 
