@@ -122,6 +122,14 @@ class FirmwareMainWindow(MainWindow):
     def _refresh_installed_version(self):
         if hasattr(self, "fw_current"): self.fw_current.setText(self._installed_version())
 
+    def _installed_sha(self):
+        try:
+            state = json.loads(UPDATE_STATE.read_text(encoding="utf-8"))
+            sha = str(state.get("sha", ""))
+            return sha if re.fullmatch(r"[0-9a-fA-F]{40}", sha) else ""
+        except (OSError, ValueError, TypeError):
+            return ""
+
     def _refresh_last_update_result(self):
         if not hasattr(self, "fw_status") or not UPDATE_STATUS.exists(): return
         try:
@@ -156,7 +164,12 @@ class FirmwareMainWindow(MainWindow):
         if saved_ref:
             saved_index = next((i for i in range(1, self.fw_version_combo.count()) if (self.fw_version_combo.itemData(i) or {}).get("ref") == saved_ref), 0)
             if saved_index: self.fw_version_combo.setCurrentIndex(saved_index)
-        self.fw_version_combo.setEnabled(bool(versions)); releases = [v for v in versions if v["kind"] == "stable"]; main = next((v for v in versions if v["kind"] == "main"), None); test_versions = [v for v in versions if v["kind"] == "test"]; latest_parts = []; latest_parts.append(("Main " + main["sha"][:7] + " · " + main.get("date","—")) if main else "Main —"); latest_parts.append(("TEST " + test_versions[0]["sha"][:7] + " · " + test_versions[0].get("date","—")) if test_versions else "TEST —"); self.fw_latest.setText(" · ".join(latest_parts)); tests = len(test_versions); self.fw_status.setText(f"{len(releases)} Stable · Main · {tests} TEST"); self._firmware_selection_changed()
+        self.fw_version_combo.setEnabled(bool(versions)); releases = [v for v in versions if v["kind"] == "stable"]; main = next((v for v in versions if v["kind"] == "main"), None); test_versions = [v for v in versions if v["kind"] == "test"]; latest_parts = []; latest_parts.append(("Main " + main["sha"][:7] + " · " + main.get("date","—")) if main else "Main —"); latest_parts.append(("TEST " + test_versions[0]["sha"][:7] + " · " + test_versions[0].get("date","—")) if test_versions else "TEST —"); self.fw_latest.setText(" · ".join(latest_parts))
+        installed_sha = self._installed_sha()
+        installed = next((v for v in versions if v.get("sha") == installed_sha), None)
+        if installed and installed.get("date"):
+            self.fw_current.setText(self._installed_version() + " · " + installed["date"])
+        tests = len(test_versions); self.fw_status.setText(f"{len(releases)} Stable · Main · {tests} TEST"); self._firmware_selection_changed()
 
     def _firmware_check_failed(self, message):
         self._firmware_busy = False; self.fw_check_button.setEnabled(True); self.fw_last_check.setText(datetime.now().strftime("%d.%m.%Y %H:%M")); self.fw_latest.setText("—"); self.fw_status.setText("GitHub-Prüfung fehlgeschlagen"); self.fw_status.setToolTip(message)
