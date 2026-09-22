@@ -7,7 +7,7 @@ import time
 
 from PyQt5 import QtCore, QtWidgets
 
-from src.network.service import broker_status
+from src.network.service import broker_status, bridge_status, configure_usb_ethernet_bridge
 from src.ui.firmware_window import FirmwareMainWindow
 
 
@@ -44,9 +44,16 @@ class TestMainWindow(FirmwareMainWindow):
                 if label is not None: form.addWidget(label, row, 0, alignment=QtCore.Qt.AlignVCenter)
                 form.addWidget(field, row, 1, alignment=QtCore.Qt.AlignVCenter); field.setFixedHeight(36)
             form.addWidget(self.lan_refresh_button, 1, 2, 1, 2, alignment=QtCore.Qt.AlignTop); form.addWidget(self.lan_apply_button, 2, 2, 1, 2, alignment=QtCore.Qt.AlignTop)
-            self.lan_refresh_button.setFixedHeight(34); self.lan_apply_button.setFixedHeight(34); form.addWidget(self.lan_result, 3, 2, 2, 2, alignment=QtCore.Qt.AlignTop)
+            self.lan_refresh_button.setFixedHeight(34); self.lan_apply_button.setFixedHeight(34)
+            self.lan_bridge_button = QtWidgets.QPushButton("USB-Bridge einrichten")
+            self.lan_bridge_button.setFixedHeight(34); self.lan_bridge_button.setToolTip("eth0 und USB-Ethernet transparent über br0 verbinden; br0 erhält 192.168.2.138/24 ohne Gateway/DNS")
+            self.lan_bridge_button.clicked.connect(self._configure_usb_bridge)
+            form.addWidget(self.lan_bridge_button, 3, 2, 1, 2, alignment=QtCore.Qt.AlignTop)
+            self.lan_bridge_status = QtWidgets.QLabel(); self.lan_bridge_status.setWordWrap(True)
+            form.addWidget(self.lan_bridge_status, 4, 2, 1, 2, alignment=QtCore.Qt.AlignTop)
+            form.addWidget(self.lan_result, 5, 2, 1, 2, alignment=QtCore.Qt.AlignTop)
             form.setColumnStretch(0, 2); form.setColumnStretch(1, 5); form.setColumnStretch(2, 2); form.setColumnStretch(3, 2); form.setRowMinimumHeight(0, 28)
-            for row in range(1, 5): form.setRowMinimumHeight(row, 36); form.setRowStretch(row, 0)
+            for row in range(1, 6): form.setRowMinimumHeight(row, 30); form.setRowStretch(row, 0)
             form.setRowStretch(5, 1); ethernet.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding); ethernet.setMaximumHeight(16777215)
         self.lan_prefix.setPlaceholderText("255.255.255.0")
         for label in root.findChildren(QtWidgets.QLabel):
@@ -60,7 +67,36 @@ class TestMainWindow(FirmwareMainWindow):
             title = QtWidgets.QLabel("Lokaler MQTT-Broker"); title.setStyleSheet("font-size:16px;font-weight:bold"); mqtt_layout.insertWidget(0, title)
             self.lan_mqtt_status.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft); self.lan_mqtt_status.setWordWrap(True); self.lan_mqtt_status.setMinimumHeight(82); self.lan_mqtt_status.setMaximumHeight(110)
             hint = QtWidgets.QLabel("LAN wird als Broker-Adresse bevorzugt. WLAN bleibt als Recovery-Zugang verfügbar."); hint.setWordWrap(True); hint.setStyleSheet("color:#9edcff;font-size:12px"); mqtt_layout.addWidget(hint); mqtt_layout.addStretch(1)
+        self.lan_gateway.setPlaceholderText("optional – leer = keine Default-Route")
+        self.lan_dns.setPlaceholderText("optional")
+        self._refresh_bridge_status()
         self._lan_mode_changed(); return root
+
+    def _refresh_bridge_status(self):
+        if not hasattr(self, "lan_bridge_status"): return
+        status=bridge_status()
+        if status["configured"]:
+            members=", ".join(status["members"]) or "—"
+            self.lan_bridge_status.setText(f"<b>br0 aktiv:</b> {status['ipv4']} · Mitglieder: {members}")
+        else:
+            self.lan_bridge_status.setText("<b>br0:</b> noch nicht eingerichtet")
+
+    def _configure_usb_bridge(self):
+        self.lan_bridge_button.setEnabled(False)
+        self.lan_bridge_status.setText("USB-Bridge wird eingerichtet …")
+        self._run_worker(configure_usb_ethernet_bridge, (), self._usb_bridge_finished, self._usb_bridge_failed)
+
+    def _usb_bridge_finished(self, result):
+        self.lan_bridge_button.setEnabled(True)
+        if result.returncode:
+            self.lan_bridge_status.setText("Bridge fehlgeschlagen: " + (result.stderr or result.stdout).strip())
+        else:
+            self._refresh_bridge_status()
+            self._refresh_network()
+
+    def _usb_bridge_failed(self, error):
+        self.lan_bridge_button.setEnabled(True)
+        self.lan_bridge_status.setText("Bridge nicht eingerichtet: " + str(error))
 
     def _lan_mode_changed(self):
         manual = self.lan_static.isChecked()
