@@ -37,36 +37,17 @@ restore_wifi_radio_state() {
  case "$(cat "$WIFI_RADIO_STATE")" in enabled) nmcli radio wifi on ;; disabled) nmcli radio wifi off ;; esac
 }
 save_network_state() {
- python3 - "$NETWORK_STATE" <<'PY'
-import json,os,subprocess,sys,tempfile
-path=sys.argv[1]
-def run(*args): return subprocess.run(['nmcli','--terse','--escape','no',*args],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False).stdout.strip()
-interface='eth0'; x=run('-g','GENERAL.CONNECTION','device','show',interface).splitlines(); connection=x[0].strip() if x else ''
-if not connection or connection=='--': raise SystemExit(0)
-fields=['ipv4.method','ipv4.addresses','ipv4.gateway','ipv4.dns','ipv4.ignore-auto-dns']; values=run('-g',','.join(fields),'connection','show',connection).splitlines(); values += ['']*(len(fields)-len(values))
-data={'interface':interface,'connection':connection}; data.update(dict(zip(fields,values)))
-fd,tmp=tempfile.mkstemp(prefix='.network-',dir=os.path.dirname(path),text=True)
-with os.fdopen(fd,'w',encoding='utf-8') as f: json.dump(data,f,ensure_ascii=False,indent=2)
-os.chmod(tmp,0o600); os.replace(tmp,path)
-PY
+ # NetworkManager profiles are persistent system state outside the application
+ # directory. Firmware installation does not replace them.
+ nmcli -f NAME,UUID,TYPE,DEVICE connection show >"$NETWORK_STATE" 2>/dev/null || true
  [[ ! -e "$NETWORK_STATE" ]] || chown root:root "$NETWORK_STATE"
 }
 restore_network_state() {
- [[ -r "$NETWORK_STATE" ]] || return 0
- python3 - "$NETWORK_STATE" <<'PY'
-import json,subprocess,sys
-with open(sys.argv[1],encoding='utf-8') as f: d=json.load(f)
-name=d.get('connection',''); interface=d.get('interface','eth0')
-if not name: raise SystemExit(0)
-def nm(*args): return subprocess.run(['nmcli',*args],text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
-probe=nm('-g','connection.id','connection','show',name)
-if probe.returncode: print('Saved Ethernet profile no longer exists: '+name+' · '+probe.stderr.strip(),file=sys.stderr); raise SystemExit(31)
-r=nm('connection','modify',name,'ipv4.method',d.get('ipv4.method','auto'),'ipv4.addresses',d.get('ipv4.addresses',''),'ipv4.gateway',d.get('ipv4.gateway',''),'ipv4.dns',d.get('ipv4.dns',''),'ipv4.ignore-auto-dns',d.get('ipv4.ignore-auto-dns','no'))
-if r.returncode: print(r.stderr.strip() or 'Ethernet settings could not be restored',file=sys.stderr); raise SystemExit(32)
-r=nm('connection','up',name,'ifname',interface)
-if r.returncode: print(r.stderr.strip() or 'Ethernet profile could not be activated',file=sys.stderr); raise SystemExit(33)
-PY
+ # Intentionally preserve NetworkManager state exactly as it is. Re-applying
+ # eth0 IPv4 settings is invalid when eth0 is a br0 bridge port.
+ return 0
 }
+
 package_signature() {
  python3 - "$1" <<'PY'
 import re,sys
