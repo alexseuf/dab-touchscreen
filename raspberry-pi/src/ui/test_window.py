@@ -162,25 +162,73 @@ class TestMainWindow(FirmwareMainWindow):
         root = super()._system_page()
         outer = root.layout()
         if isinstance(outer, QtWidgets.QVBoxLayout):
-            mode_row = QtWidgets.QHBoxLayout()
-            mode_label = QtWidgets.QLabel("Betriebsmodus"); mode_label.setStyleSheet("font-weight:bold")
-            self.fw_live_button = QtWidgets.QPushButton("Live (MQTT)"); self.fw_demo_button = QtWidgets.QPushButton("Demo")
-            self.fw_live_button.setCheckable(True); self.fw_demo_button.setCheckable(True)
-            self.fw_live_button.clicked.connect(lambda: self._set_data_mode(False)); self.fw_demo_button.clicked.connect(lambda: self._set_data_mode(True))
-            mode_row.addWidget(mode_label, 2); mode_row.addWidget(self.fw_live_button, 2); mode_row.addWidget(self.fw_demo_button, 1)
-            # Keep the operating-mode controls directly above the reset/system
-            # actions, matching the 800x480 touchscreen mock-up.
-            insert_at = max(0, outer.count() - 1)
-            outer.insertStretch(insert_at, 1)
-            outer.insertLayout(insert_at + 1, mode_row)
-            self._show_data_mode(bool(self.config["app"].get("demo_data", True)))
+            # Compact SSD SMART/health summary. Values are refreshed separately
+            # so the normal system-status refresh remains lightweight.
+            self.ssd_health_label = QtWidgets.QLabel("<b>SSD-Gesundheit:</b> wird geprüft …")
+            self.ssd_health_label.setWordWrap(True)
+            self.ssd_health_label.setStyleSheet("padding:5px;border:1px solid #2f88c9;border-radius:4px")
+            outer.insertWidget(max(0, outer.count() - 1), self.ssd_health_label)
+            QtCore.QTimer.singleShot(400, self._refresh_ssd_health)
+            self._ssd_health_timer = QtCore.QTimer(root)
+            self._ssd_health_timer.timeout.connect(self._refresh_ssd_health)
+            self._ssd_health_timer.start(60000)
+
+            # Bottom row exactly as approved: reset | Betriebsmodus | Live | Demo.
+            bottom = QtWidgets.QHBoxLayout()
             reset = QtWidgets.QPushButton("Werkseinstellungen wiederherstellen")
-            reset.setFixedHeight(34)
-            reset.setMaximumWidth(310)
+            reset.setFixedHeight(44)
             reset.setToolTip("DAB-Anwendungseinstellungen zurücksetzen; LAN und WLAN bleiben erhalten")
             reset.clicked.connect(self._confirm_factory_reset)
-            outer.insertWidget(max(0, outer.count() - 1), reset, 0, QtCore.Qt.AlignLeft)
+            mode_label = QtWidgets.QLabel("Betriebsmodus"); mode_label.setStyleSheet("font-weight:bold")
+            mode_label.setAlignment(QtCore.Qt.AlignCenter)
+            self.fw_live_button = QtWidgets.QPushButton("Live (MQTT)"); self.fw_demo_button = QtWidgets.QPushButton("Demo")
+            self.fw_live_button.setFixedHeight(44); self.fw_demo_button.setFixedHeight(44)
+            self.fw_live_button.setCheckable(True); self.fw_demo_button.setCheckable(True)
+            self.fw_live_button.clicked.connect(lambda: self._set_data_mode(False)); self.fw_demo_button.clicked.connect(lambda: self._set_data_mode(True))
+            bottom.addWidget(reset, 3); bottom.addWidget(mode_label, 2); bottom.addWidget(self.fw_live_button, 3); bottom.addWidget(self.fw_demo_button, 2)
+            outer.insertLayout(max(0, outer.count() - 1), bottom)
+            self._show_data_mode(bool(self.config["app"].get("demo_data", True)))
         return root
+
+    def _refresh_ssd_health(self):
+        if not hasattr(self, "ssd_health_label"): return
+        def read_health():
+            import json as _json
+            # Root filesystem device; strip partition suffix for common SATA/NVMe names.
+            src = subprocess.run(["findmnt","-n","-o","SOURCE","/"], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False, timeout=2).stdout.strip()
+            dev = src
+            if "/dev/nvme" in dev: dev = re.sub(r"p\\d+$", "", dev)
+            elif dev.startswith("/dev/"): dev = re.sub(r"\\d+$", "", dev)
+            if not dev.startswith("/dev/"): return {"available":False}
+            proc = subprocess.run(["smartctl","-a","-j",dev], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False, timeout=8)
+            try: data=_json.loads(proc.stdout or "{}")
+            except ValueError: return {"available":False}
+            temp=data.get("temperature",{}).get("current")
+            hours=data.get("power_on_time",{}).get("hours")
+            cycles=data.get("power_cycle_count")
+            passed=data.get("smart_status",{}).get("passed")
+            nv=data.get("nvme_smart_health_information_log",{})
+            used=nv.get("percentage_used")
+            written=nv.get("data_units_written")
+            tb=None
+            if isinstance(written,(int,float)): tb=written*512000/1e12
+            health=(max(0,100-used) if isinstance(used,(int,float)) else None)
+            return {"available":True,"passed":passed,"temp":temp,"hours":hours,"cycles":cycles,"health":health,"tb":tb}
+        self._run_worker(read_health, (), self._ssd_health_ready, lambda _e:self._ssd_health_unavailable())
+
+    def _ssd_health_unavailable(self):
+        if hasattr(self,"ssd_health_label"): self.ssd_health_label.setText("<b>SSD-Gesundheit:</b> SMART-Daten nicht verfügbar")
+
+    def _ssd_health_ready(self, d):
+        if not d.get("available"): return self._ssd_health_unavailable()
+        status = "OK" if d.get("passed") is not False else "WARNUNG"
+        parts=[f"<b>SSD-Gesundheit:</b> {status}"]
+        if d.get("health") is not None: parts.append(f"{d['health']:.0f} %")
+        if d.get("temp") is not None: parts.append(f"{d['temp']} °C")
+        if d.get("hours") is not None: parts.append(f"{d['hours']} h")
+        if d.get("cycles") is not None: parts.append(f"{d['cycles']} Einschaltvorgänge")
+        if d.get("tb") is not None: parts.append(f"{d['tb']:.1f} TB geschrieben")
+        self.ssd_health_label.setText(" · ".join(parts))
 
     def _confirm_factory_reset(self):
         answer = QtWidgets.QMessageBox.question(
