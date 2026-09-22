@@ -105,13 +105,15 @@ def usb_ethernet_status():
 
 def broker_status():
     addresses={}
-    for interface in ('eth0','wlan0'):
+    for interface in ('br0','eth0','wlan0'):
         output=subprocess.run(['ip','-4','-brief','address','show','dev',interface],text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,check=False).stdout.split();addresses[interface]=next((part.split('/')[0] for part in output if '/' in part),'')
     try:
         with socket.create_connection(('127.0.0.1',1883),timeout=.5):pass
         running=True
     except OSError:running=False
-    host=addresses['eth0'] or addresses['wlan0'] or '127.0.0.1';return {'running':running,'host':host,'port':1883,'preferred':'LAN' if addresses['eth0'] else ('WLAN' if addresses['wlan0'] else 'lokal')}
+    host=addresses['br0'] or addresses['eth0'] or addresses['wlan0'] or '127.0.0.1'
+    preferred='Bridge/LAN' if addresses['br0'] else ('LAN' if addresses['eth0'] else ('WLAN' if addresses['wlan0'] else 'lokal'))
+    return {'running':running,'host':host,'port':1883,'preferred':preferred}
 
 def set_ethernet(interface,method,address='',prefix='24',gateway='',dns=''):
     status=ethernet_status(interface);connection=status['connection']
