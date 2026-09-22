@@ -33,6 +33,18 @@ class EthernetConfigurationTest(unittest.TestCase):
         self.assertEqual(('connection','up','Kabelgebundene Verbindung 1','ifname','eth0'),nmcli.call_args_list[1].args)
 
     @patch('src.network.service.ethernet_status', return_value={'connection':'Kabelgebundene Verbindung 1'})
+    @patch('src.network.service.nmcli')
+    def test_isolated_static_lan_allows_empty_gateway_and_dns(self, nmcli, _status):
+        nmcli.side_effect=[result(),result()]
+        applied=set_ethernet('eth0','manual','192.168.2.138','24','','')
+        self.assertEqual(0,applied.returncode)
+        modify=nmcli.call_args_list[0].args
+        self.assertIn('192.168.2.138/24',modify)
+        self.assertEqual('',modify[modify.index('ipv4.gateway')+1])
+        self.assertEqual('',modify[modify.index('ipv4.dns')+1])
+        self.assertEqual('yes',modify[modify.index('ipv4.never-default')+1])
+
+    @patch('src.network.service.ethernet_status', return_value={'connection':'Kabelgebundene Verbindung 1'})
     def test_gateway_outside_subnet_is_rejected(self, _status):
         with self.assertRaisesRegex(ValueError,'Gateway'):
             set_ethernet('eth0','manual','192.168.1.100','24','10.0.0.1','192.168.1.1')
