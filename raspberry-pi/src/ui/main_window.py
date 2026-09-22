@@ -3,7 +3,7 @@ import configparser, ctypes, html, json, os, platform, shutil, socket, subproces
 from collections import deque
 from PyQt5 import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
-from src.network.service import broker_status, ethernet_status, set_ethernet, wifi_scan, wifi_status, connect_wifi, disconnect_wifi
+from src.network.service import broker_status, ethernet_status, set_ethernet, usb_ethernet_status, wifi_scan, wifi_status, connect_wifi, disconnect_wifi
 
 SIGNAL_GROUPS={
  'Netz':['grid_voltage_l1','grid_voltage_l2','grid_voltage_l3','grid_current_l1','grid_current_l2','grid_current_l3','grid_frequency','input_power'],
@@ -215,7 +215,7 @@ class MainWindow(QtWidgets.QMainWindow):
         grid=QtWidgets.QGridLayout();outer.addLayout(grid);self.system_labels={};self.system_bars={}
         for row,(key,label) in enumerate([('cpu','CPU-Auslastung'),('memory','Arbeitsspeicher'),('temperature','CPU-Temperatur'),('disk','SSD-Belegung')]):
             grid.addWidget(QtWidgets.QLabel(label),row,0);bar=QtWidgets.QProgressBar();bar.setRange(0,100);bar.setFormat('%p %');grid.addWidget(bar,row,1);value=QtWidgets.QLabel('—');value.setMinimumWidth(155);grid.addWidget(value,row,2);self.system_bars[key]=bar;self.system_labels[key]=value
-        self.system_details=QtWidgets.QLabel('Systemdaten werden geladen …');self.system_details.setWordWrap(True);self.system_details.setAlignment(QtCore.Qt.AlignTop);outer.addWidget(self.system_details,1)
+        self.system_details=QtWidgets.QLabel('Systemdaten werden geladen …');self.system_details.setWordWrap(True);self.system_details.setAlignment(QtCore.Qt.AlignTop);outer.addWidget(self.system_details,1);self.usb_ethernet_label=QtWidgets.QLabel('USB-Ethernet: wird geprüft …');self.usb_ethernet_label.setWordWrap(True);outer.addWidget(self.usb_ethernet_label)
         actions=QtWidgets.QHBoxLayout();restart=QtWidgets.QPushButton('↻ Raspberry neu starten');restart.clicked.connect(lambda:self._confirm_system_action('reboot'));shutdown=QtWidgets.QPushButton('⏻ Raspberry ausschalten');shutdown.setStyleSheet('background:#8b2f34');shutdown.clicked.connect(lambda:self._confirm_system_action('poweroff'));actions.addWidget(restart);actions.addWidget(shutdown);outer.addLayout(actions);QtCore.QTimer.singleShot(0,self._refresh_system);return root
 
     def _read_cpu_percent(self):
@@ -231,7 +231,10 @@ class MainWindow(QtWidgets.QMainWindow):
             for key,value,text in [('cpu',cpu,f'{cpu:.1f} %'),('memory',memory,f'{mem_used/1048576:.1f} / {mem_total/1048576:.1f} GiB'),('temperature',min(100,temperature),f'{temperature:.1f} °C'),('disk',disk_percent,f'{disk.used/1073741824:.1f} / {disk.total/1073741824:.1f} GiB')]:self.system_bars[key].setValue(round(value));self.system_labels[key].setText(text)
             uptime=int(float(open('/proc/uptime',encoding='ascii').read().split()[0]));days,rem=divmod(uptime,86400);hours,rem=divmod(rem,3600);minutes=rem//60
             ips=subprocess.run(['ip','-4','-brief','address'],text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,check=False,timeout=2).stdout.strip()
-            self.system_details.setText(f'<b>Hostname:</b> {html.escape(socket.gethostname())}<br><b>System:</b> {html.escape(platform.platform())}<br><b>Laufzeit:</b> {days} Tage, {hours} Std., {minutes} Min.<br><b>CPU-Kerne:</b> {os.cpu_count()}<br><b>Netzwerk:</b><pre>{html.escape(ips or "—")}</pre>')
+            self.system_details.setText(f'<b>Hostname:</b> {html.escape(socket.gethostname())}<br><b>System:</b> {html.escape(platform.platform())}<br><b>Laufzeit:</b> {days} Tage, {hours} Std., {minutes} Min.<br><b>CPU-Kerne:</b> {os.cpu_count()}<br><b>Netzwerk:</b><pre>{html.escape(ips or "—")}</pre>');usb_adapters=usb_ethernet_status()
+            if usb_adapters:
+                lines=[f"<b>USB-Ethernet erkannt:</b> {html.escape(a['interface'])} · {html.escape(a['state'])} · IPv4 {html.escape(a['ipv4'])} · MAC {html.escape(a['mac'])} · Treiber {html.escape(a['driver'])}" for a in usb_adapters];self.usb_ethernet_label.setText("<br>".join(lines))
+            else:self.usb_ethernet_label.setText("<b>USB-Ethernet:</b> kein Adapter erkannt – normaler Betrieb ohne USB-Adapter")
         except Exception as exc:self.system_details.setText('Systemdaten konnten nicht gelesen werden: '+html.escape(str(exc)))
     def _confirm_system_action(self,action):
         label='neu starten' if action=='reboot' else 'ausschalten';answer=QtWidgets.QMessageBox.warning(self,'Systemaktion bestätigen',f'Raspberry Pi wirklich {label}?',QtWidgets.QMessageBox.Yes|QtWidgets.QMessageBox.No,QtWidgets.QMessageBox.No)
