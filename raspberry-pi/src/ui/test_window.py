@@ -162,11 +162,20 @@ class TestMainWindow(FirmwareMainWindow):
         root = super()._system_page()
         outer = root.layout()
         if isinstance(outer, QtWidgets.QVBoxLayout):
+            mode_row = QtWidgets.QHBoxLayout()
+            mode_label = QtWidgets.QLabel("Betriebsmodus"); mode_label.setStyleSheet("font-weight:bold")
+            self.fw_live_button = QtWidgets.QPushButton("Live (MQTT)"); self.fw_demo_button = QtWidgets.QPushButton("Demo")
+            self.fw_live_button.setCheckable(True); self.fw_demo_button.setCheckable(True)
+            self.fw_live_button.clicked.connect(lambda: self._set_data_mode(False)); self.fw_demo_button.clicked.connect(lambda: self._set_data_mode(True))
+            mode_row.addWidget(mode_label, 2); mode_row.addWidget(self.fw_live_button, 2); mode_row.addWidget(self.fw_demo_button, 1)
+            outer.insertLayout(max(0, outer.count() - 1), mode_row)
+            self._show_data_mode(bool(self.config["app"].get("demo_data", True)))
             reset = QtWidgets.QPushButton("Werkseinstellungen wiederherstellen")
-            reset.setMinimumHeight(44)
+            reset.setFixedHeight(34)
+            reset.setMaximumWidth(310)
             reset.setToolTip("DAB-Anwendungseinstellungen zurücksetzen; LAN und WLAN bleiben erhalten")
             reset.clicked.connect(self._confirm_factory_reset)
-            outer.insertWidget(max(0, outer.count() - 1), reset)
+            outer.insertWidget(max(0, outer.count() - 1), reset, 0, QtCore.Qt.AlignLeft)
         return root
 
     def _confirm_factory_reset(self):
