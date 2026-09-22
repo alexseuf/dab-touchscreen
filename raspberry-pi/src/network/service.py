@@ -121,12 +121,16 @@ def set_ethernet(interface,method,address='',prefix='24',gateway='',dns=''):
     if method=='manual':
         ip=ipaddress.IPv4Address(address.strip());prefix_int=int(prefix)
         if not 1<=prefix_int<=32:raise ValueError('Prefix muss zwischen 1 und 32 liegen')
-        network=ipaddress.IPv4Network(f'{ip}/{prefix_int}',strict=False);gateway_ip=ipaddress.IPv4Address(gateway.strip())
-        if gateway_ip not in network:raise ValueError('Gateway liegt nicht im angegebenen Netz')
+        network=ipaddress.IPv4Network(f'{ip}/{prefix_int}',strict=False)
+        gateway_value=gateway.strip()
+        if gateway_value:
+            gateway_ip=ipaddress.IPv4Address(gateway_value)
+            if gateway_ip not in network:raise ValueError('Gateway liegt nicht im angegebenen Netz')
         dns_values=[value for value in dns.replace(',',' ').split() if value]
-        if not dns_values:raise ValueError('Mindestens ein DNS-Server ist erforderlich')
         for value in dns_values:ipaddress.IPv4Address(value)
-        args += ['ipv4.method','manual','ipv4.addresses',f'{ip}/{prefix_int}','ipv4.gateway',str(gateway_ip),'ipv4.dns',','.join(dns_values),'ipv4.ignore-auto-dns','yes']
+        # Gateway and DNS are intentionally optional. An isolated DUT LAN must
+        # not install a competing default route; WLAN remains Internet/recovery.
+        args += ['ipv4.method','manual','ipv4.addresses',f'{ip}/{prefix_int}','ipv4.gateway',gateway_value,'ipv4.dns',','.join(dns_values),'ipv4.ignore-auto-dns','yes','ipv4.never-default','yes' if not gateway_value else 'no']
     else:args += ['ipv4.method','auto','ipv4.addresses','','ipv4.gateway','','ipv4.dns','','ipv4.ignore-auto-dns','no']
     changed=nmcli(*args)
     if changed.returncode:return changed
