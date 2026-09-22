@@ -174,7 +174,11 @@ class FirmwareMainWindow(MainWindow):
         tests = len(test_versions); self.fw_status.setText(f"{len(releases)} Stable · Main · {tests} TEST"); self._firmware_selection_changed()
 
     def _firmware_check_failed(self, message):
-        self._firmware_busy = False; self.fw_check_button.setEnabled(True); self.fw_last_check.setText(datetime.now().strftime("%d.%m.%Y %H:%M")); self.fw_latest.setText("—"); if message.startswith("RATE_LIMIT:"):
+        self._firmware_busy = False
+        self.fw_check_button.setEnabled(True)
+        self.fw_last_check.setText(datetime.now().strftime("%d.%m.%Y %H:%M"))
+        self.fw_latest.setText("—")
+        if message.startswith("RATE_LIMIT:"):
             reset = message.split(":", 1)[1] or "später"
             self.fw_status.setText("GitHub-Limit erreicht · erneut ab " + reset)
         else:
