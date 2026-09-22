@@ -79,9 +79,7 @@ class FirmwareMainWindow(MainWindow):
         self.fw_install_button = QtWidgets.QPushButton("Version installieren"); self.fw_install_button.setEnabled(False); self.fw_install_button.clicked.connect(self._install_selected_version)
         action_row.addWidget(self.fw_version_combo, 3); action_row.addWidget(self.fw_install_button, 2); left_layout.addLayout(action_row)
 
-        separator = QtWidgets.QFrame(); separator.setFrameShape(QtWidgets.QFrame.HLine); separator.setStyleSheet("color:#355364"); left_layout.addWidget(separator)
-        mode_row = QtWidgets.QHBoxLayout(); mode_label = QtWidgets.QLabel("Betriebsmodus"); mode_label.setStyleSheet("font-weight:bold"); mode_row.addWidget(mode_label, 2)
-        self.fw_live_button = QtWidgets.QPushButton("Live (MQTT)"); self.fw_demo_button = QtWidgets.QPushButton("Demo"); self.fw_live_button.setCheckable(True); self.fw_demo_button.setCheckable(True); self.fw_live_button.clicked.connect(lambda: self._set_data_mode(False)); self.fw_demo_button.clicked.connect(lambda: self._set_data_mode(True)); mode_row.addWidget(self.fw_live_button, 2); mode_row.addWidget(self.fw_demo_button, 1); left_layout.addLayout(mode_row); self._show_data_mode(bool(self.config["app"].get("demo_data", True)))
+        self._show_data_mode(bool(self.config["app"].get("demo_data", True)))
 
         right = QtWidgets.QFrame(); right.setObjectName("section"); right_layout = QtWidgets.QVBoxLayout(right); right_layout.setContentsMargins(10, 7, 10, 7); right_layout.setSpacing(6)
         heading = QtWidgets.QLabel("Hinweise"); heading.setStyleSheet("font-size:17px;font-weight:bold"); right_layout.addWidget(heading)
@@ -141,7 +139,7 @@ class FirmwareMainWindow(MainWindow):
         self.config["app"]["demo_data"] = bool(demo); self._show_data_mode(bool(demo)); self.data_mode_changed.emit(bool(demo))
 
     def _show_data_mode(self, demo):
-        if not hasattr(self, "fw_live_button"): return
+        if not hasattr(self, "fw_live_button") or not hasattr(self, "fw_demo_button"): return
         self.fw_demo_button.setChecked(demo); self.fw_live_button.setChecked(not demo); active = "background:#1687e8;border:1px solid #55d6ff"; self.fw_demo_button.setStyleSheet(active if demo else ""); self.fw_live_button.setStyleSheet(active if not demo else "")
 
     def _check_firmware_versions(self):
@@ -158,7 +156,7 @@ class FirmwareMainWindow(MainWindow):
         if saved_ref:
             saved_index = next((i for i in range(1, self.fw_version_combo.count()) if (self.fw_version_combo.itemData(i) or {}).get("ref") == saved_ref), 0)
             if saved_index: self.fw_version_combo.setCurrentIndex(saved_index)
-        self.fw_version_combo.setEnabled(bool(versions)); releases = [v for v in versions if v["kind"] == "stable"]; main = next((v for v in versions if v["kind"] == "main"), None); test_versions = [v for v in versions if v["kind"] == "test"]; latest_parts = []; latest_parts.append("Main " + main["sha"][:7] if main else "Main —"); latest_parts.append("TEST " + test_versions[0]["sha"][:7] if test_versions else "TEST —"); self.fw_latest.setText(" · ".join(latest_parts)); tests = len(test_versions); self.fw_status.setText(f"{len(releases)} Stable · Main · {tests} TEST"); self._firmware_selection_changed()
+        self.fw_version_combo.setEnabled(bool(versions)); releases = [v for v in versions if v["kind"] == "stable"]; main = next((v for v in versions if v["kind"] == "main"), None); test_versions = [v for v in versions if v["kind"] == "test"]; latest_parts = []; latest_parts.append(("Main " + main["sha"][:7] + " · " + main.get("date","—")) if main else "Main —"); latest_parts.append(("TEST " + test_versions[0]["sha"][:7] + " · " + test_versions[0].get("date","—")) if test_versions else "TEST —"); self.fw_latest.setText(" · ".join(latest_parts)); tests = len(test_versions); self.fw_status.setText(f"{len(releases)} Stable · Main · {tests} TEST"); self._firmware_selection_changed()
 
     def _firmware_check_failed(self, message):
         self._firmware_busy = False; self.fw_check_button.setEnabled(True); self.fw_last_check.setText(datetime.now().strftime("%d.%m.%Y %H:%M")); self.fw_latest.setText("—"); self.fw_status.setText("GitHub-Prüfung fehlgeschlagen"); self.fw_status.setToolTip(message)
@@ -223,8 +221,8 @@ class _FirmwareDiscoveryWorker(QtCore.QRunnable):
                     commit = _github_json(base + "/commits/" + urllib.parse.quote(tag, safe="")); sha = commit.get("sha", ""); versions.append({"kind":"stable","name":tag,"ref":tag,"sha":sha,"label":f"Stable · {tag} · {sha[:7]}"})
             branch_map = {item.get("name", ""): item.get("commit", {}).get("sha", "") for item in branches}
             if "main" in branch_map:
-                sha = branch_map["main"]; versions.append({"kind":"main","name":"main","ref":"main","sha":sha,"label":f"Main · {sha[:7]}"})
+                sha = branch_map["main"]; commit = _github_json(base + "/commits/" + sha); date = str(commit.get("commit",{}).get("committer",{}).get("date",""))[:10]; versions.append({"kind":"main","name":"main","ref":"main","sha":sha,"date":date,"label":f"Main · {sha[:7]}"})
             for name in sorted(n for n in branch_map if n.startswith(("feature/","development/"))):
-                sha = branch_map[name]; versions.append({"kind":"test","name":name,"ref":name,"sha":sha,"label":f"TEST · {name} · {sha[:7]}"})
+                sha = branch_map[name]; commit = _github_json(base + "/commits/" + sha); date = str(commit.get("commit",{}).get("committer",{}).get("date",""))[:10]; versions.append({"kind":"test","name":name,"ref":name,"sha":sha,"date":date,"label":f"TEST · {name} · {sha[:7]}"})
             self.signals.result.emit({"versions":versions})
         except Exception as exc: self.signals.error.emit(str(exc))
