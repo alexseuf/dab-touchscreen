@@ -68,10 +68,10 @@ class FirmwareMainWindow(MainWindow):
         grid = QtWidgets.QGridLayout(); grid.setHorizontalSpacing(8); grid.setVerticalSpacing(4); grid.setColumnStretch(0, 2); grid.setColumnStretch(1, 5); left_layout.addLayout(grid)
         self.fw_current = self._firmware_value()
         self.fw_repository = QtWidgets.QLineEdit(self._settings.value("firmware/repository", DEFAULT_REPOSITORY)); self.fw_repository.setMinimumHeight(34); self.fw_repository.setPlaceholderText("owner/repository"); self.fw_repository.installEventFilter(self); self.fw_repository.editingFinished.connect(self._repository_changed)
-        self.fw_last_check = self._firmware_value("Noch nicht geprüft"); self.fw_latest = self._firmware_value("—"); self.fw_status = self._firmware_value("Bereit")
+        self.fw_last_check = self._firmware_value("Noch nicht geprüft"); self.fw_latest = self._firmware_value("—"); self.fw_latest.setWordWrap(True); self.fw_latest.setMinimumHeight(58); self.fw_status = self._firmware_value("Bereit")
         self._add_firmware_row(grid, 0, "Aktuelle Version", self.fw_current); self._add_firmware_row(grid, 1, "Repository", self.fw_repository); self._add_firmware_row(grid, 2, "Letzte Prüfung", self.fw_last_check)
         latest_row = QtWidgets.QWidget(); latest_layout = QtWidgets.QHBoxLayout(latest_row); latest_layout.setContentsMargins(0, 0, 0, 0); latest_layout.setSpacing(5); latest_layout.addWidget(self.fw_latest, 3)
-        self.fw_check_button = QtWidgets.QPushButton("Jetzt prüfen"); self.fw_check_button.setMinimumHeight(38); self.fw_check_button.clicked.connect(self._check_firmware_versions); latest_layout.addWidget(self.fw_check_button, 2)
+        self.fw_check_button = QtWidgets.QPushButton("Jetzt prüfen"); self.fw_check_button.setMinimumHeight(58); self.fw_check_button.clicked.connect(self._check_firmware_versions); latest_layout.addWidget(self.fw_check_button, 2)
         self._add_firmware_row(grid, 3, "Neueste Version", latest_row); self._add_firmware_row(grid, 4, "Status", self.fw_status)
 
         action_row = QtWidgets.QHBoxLayout()
@@ -164,11 +164,11 @@ class FirmwareMainWindow(MainWindow):
         if saved_ref:
             saved_index = next((i for i in range(1, self.fw_version_combo.count()) if (self.fw_version_combo.itemData(i) or {}).get("ref") == saved_ref), 0)
             if saved_index: self.fw_version_combo.setCurrentIndex(saved_index)
-        self.fw_version_combo.setEnabled(bool(versions)); releases = [v for v in versions if v["kind"] == "stable"]; main = next((v for v in versions if v["kind"] == "main"), None); test_versions = [v for v in versions if v["kind"] == "test"]; latest_parts = []; latest_parts.append(("Main " + main["sha"][:7] + " · " + main.get("date","—")) if main else "Main —"); latest_parts.append(("TEST " + test_versions[0]["sha"][:7] + " · " + test_versions[0].get("date","—")) if test_versions else "TEST —"); self.fw_latest.setText(" · ".join(latest_parts))
+        self.fw_version_combo.setEnabled(bool(versions)); releases = [v for v in versions if v["kind"] == "stable"]; main = next((v for v in versions if v["kind"] == "main"), None); test_versions = [v for v in versions if v["kind"] == "test"]; latest_parts = []; latest_parts.append(("Main " + main["sha"][:7] + " · " + main.get("date","—")) if main else "Main —"); latest_parts.append(("TEST " + test_versions[0]["sha"][:7] + " · " + test_versions[0].get("date","—")) if test_versions else "TEST —"); self.fw_latest.setText("\n".join(latest_parts))
         installed_sha = self._installed_sha()
         installed = next((v for v in versions if v.get("sha") == installed_sha), None)
         if installed and installed.get("date"):
-            self.fw_current.setText(self._installed_version() + " · " + installed["date"])
+            self.fw_current.setText(self._installed_version() + "\n" + installed["date"]); self.fw_current.setWordWrap(True); self.fw_current.setMinimumHeight(52)
         tests = len(test_versions); self.fw_status.setText(f"{len(releases)} Stable · Main · {tests} TEST"); self._firmware_selection_changed()
 
     def _firmware_check_failed(self, message):
@@ -215,6 +215,13 @@ class _FirmwareSignals(QtCore.QObject):
     result = QtCore.pyqtSignal(object); error = QtCore.pyqtSignal(str)
 
 
+def _format_github_datetime(value):
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed.astimezone().strftime("%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return str(value or "—")[:16].replace("T", " ")
+
 def _github_json(url):
     request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "dab-touchscreen"})
     with urllib.request.urlopen(request, timeout=8) as response: return json.loads(response.read().decode("utf-8"))
@@ -234,8 +241,8 @@ class _FirmwareDiscoveryWorker(QtCore.QRunnable):
                     commit = _github_json(base + "/commits/" + urllib.parse.quote(tag, safe="")); sha = commit.get("sha", ""); versions.append({"kind":"stable","name":tag,"ref":tag,"sha":sha,"label":f"Stable · {tag} · {sha[:7]}"})
             branch_map = {item.get("name", ""): item.get("commit", {}).get("sha", "") for item in branches}
             if "main" in branch_map:
-                sha = branch_map["main"]; commit = _github_json(base + "/commits/" + sha); date = str(commit.get("commit",{}).get("committer",{}).get("date",""))[:10]; versions.append({"kind":"main","name":"main","ref":"main","sha":sha,"date":date,"label":f"Main · {sha[:7]}"})
+                sha = branch_map["main"]; commit = _github_json(base + "/commits/" + sha); raw_date = str(commit.get("commit",{}).get("committer",{}).get("date","")); date = _format_github_datetime(raw_date); versions.append({"kind":"main","name":"main","ref":"main","sha":sha,"date":date,"label":f"Main · {sha[:7]}"})
             for name in sorted(n for n in branch_map if n.startswith(("feature/","development/"))):
-                sha = branch_map[name]; commit = _github_json(base + "/commits/" + sha); date = str(commit.get("commit",{}).get("committer",{}).get("date",""))[:10]; versions.append({"kind":"test","name":name,"ref":name,"sha":sha,"date":date,"label":f"TEST · {name} · {sha[:7]}"})
+                sha = branch_map[name]; commit = _github_json(base + "/commits/" + sha); raw_date = str(commit.get("commit",{}).get("committer",{}).get("date","")); date = _format_github_datetime(raw_date); versions.append({"kind":"test","name":name,"ref":name,"sha":sha,"date":date,"label":f"TEST · {name} · {sha[:7]}"})
             self.signals.result.emit({"versions":versions})
         except Exception as exc: self.signals.error.emit(str(exc))
