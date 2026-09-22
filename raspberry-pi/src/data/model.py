@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from threading import RLock
 from typing import Callable
+import json
 
 @dataclass(frozen=True)
 class SignalValue:
@@ -30,7 +31,14 @@ class DataModel:
         definition = self.definitions[signal_id]
         now = timestamp or datetime.now(timezone.utc)
         try:
-            value = float(payload.decode() if isinstance(payload, bytes) else payload)
+            text = payload.decode() if isinstance(payload, bytes) else str(payload)
+            try:
+                decoded = json.loads(text)
+            except (ValueError, TypeError):
+                decoded = text
+            if isinstance(decoded, dict) and 'value' in decoded:
+                decoded = decoded['value']
+            value = float(decoded)
             quality = 'valid'
         except (ValueError, TypeError, UnicodeDecodeError):
             value, quality = None, 'invalid'
