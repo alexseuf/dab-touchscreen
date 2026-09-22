@@ -68,6 +68,41 @@ def ethernet_status(interface='eth0'):
     configured=nmcli('-g','ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns','connection','show',connection) if connection and connection!='--' else None;settings=[line.strip() for line in configured.stdout.splitlines()] if configured else [];live_address=next((row for row in rows[2:] if '/' in row),'');address=(settings[1] if len(settings)>1 else '') or live_address;ip,prefix=(address.split('/',1)+['24'])[:2] if address else ('','24');gateway=(settings[2] if len(settings)>2 else '') or (rows[3] if len(rows)>3 else '');dns=(settings[3] if len(settings)>3 else '') or ', '.join(row for row in rows[4:] if row);method=settings[0] if settings else 'auto'
     return {'interface':interface,'state':rows[0] if rows else 'nicht verfügbar','connection':connection,'method':method,'address':ip,'prefix':prefix,'gateway':gateway,'dns':dns,'live_address':live_address}
 
+
+def usb_ethernet_status():
+    """Return USB Ethernet adapters without making their presence mandatory."""
+    adapters=[]
+    sys_net='/sys/class/net'
+    try:
+        names=sorted(os.listdir(sys_net))
+    except OSError:
+        return adapters
+    for interface in names:
+        if interface in ('lo','eth0','wlan0'):
+            continue
+        device=os.path.realpath(os.path.join(sys_net,interface,'device'))
+        # USB NICs have a USB ancestor in their sysfs device path.
+        if '/usb' not in device:
+            continue
+        type_result=nmcli('-g','GENERAL.TYPE,GENERAL.STATE,GENERAL.CONNECTION','device','show',interface)
+        rows=[row.strip() for row in type_result.stdout.splitlines()]
+        if not rows or rows[0] not in ('ethernet','802-3-ethernet'):
+            continue
+        address=subprocess.run(['ip','-4','-brief','address','show','dev',interface],text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,check=False).stdout.split()
+        ipv4=next((part for part in address if '/' in part),'')
+        driver=''
+        try:
+            driver=os.path.basename(os.path.realpath(os.path.join(sys_net,interface,'device','driver')))
+        except OSError:
+            pass
+        mac=''
+        try:
+            mac=open(os.path.join(sys_net,interface,'address'),encoding='ascii').read().strip()
+        except OSError:
+            pass
+        adapters.append({'interface':interface,'state':rows[1] if len(rows)>1 else 'unbekannt','connection':rows[2] if len(rows)>2 and rows[2]!='--' else '—','ipv4':ipv4 or '—','driver':driver or '—','mac':mac or '—'})
+    return adapters
+
 def broker_status():
     addresses={}
     for interface in ('eth0','wlan0'):
