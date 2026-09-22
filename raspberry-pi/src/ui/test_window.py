@@ -7,7 +7,7 @@ import time
 
 from PyQt5 import QtCore, QtWidgets
 
-from src.network.service import broker_status, bridge_status, configure_usb_ethernet_bridge
+from src.network.service import broker_status, bridge_status, configure_usb_ethernet_bridge, ethernet_status, set_ethernet
 from src.ui.firmware_window import FirmwareMainWindow
 
 
@@ -136,9 +136,22 @@ class TestMainWindow(FirmwareMainWindow):
         self.lan_mqtt_status.setText(f"<span style='color:{color};font-size:20px'>●</span> <b>{state}</b>&nbsp;&nbsp;&nbsp; <b>Broker-Adresse:</b> mqtt://{html.escape(self._broker_host)}&nbsp;&nbsp;&nbsp; <b>Port:</b> {broker['port']}<br><b>Bevorzugter Netzwerkweg:</b> {html.escape(str(broker['preferred']))}<br><b>Erreichbar über:</b> {html.escape(str(broker['preferred']))} · {html.escape(self._broker_host)}:{broker['port']}")
 
     def _apply_lan(self):
-        shown_mask = self.lan_prefix.text(); self.lan_prefix.setText(self._netmask_to_prefix(shown_mask))
-        try: super()._apply_lan()
-        finally: self.lan_prefix.setText(shown_mask)
+        # Once br0 exists, the IP configuration belongs to the bridge itself.
+        # eth0/USB are pure L2 bridge ports and must not carry their own IPv4.
+        shown_mask=self.lan_prefix.text()
+        prefix=self._netmask_to_prefix(shown_mask)
+        method='manual' if self.lan_static.isChecked() else 'auto'
+        interface='br0' if bridge_status()['configured'] else self.config['network']['ethernet_interface']
+        self.lan_apply_button.setEnabled(False)
+        self.lan_result.setText(f'{interface}-Konfiguration wird geprüft und angewendet …')
+        args=(interface,method,self.lan_address.text(),prefix,self.lan_gateway.text(),self.lan_dns.text())
+        self._run_worker(set_ethernet,args,self._lan_applied,self._lan_failed)
+
+    def _refresh_network(self):
+        if not hasattr(self,'lan_refresh_button'): return
+        self.lan_refresh_button.setEnabled(False)
+        interface='br0' if bridge_status()['configured'] else self.config['network']['ethernet_interface']
+        self._run_worker(ethernet_status,(interface,),self._network_refreshed,self._lan_failed)
 
     def _set_data_mode(self, demo):
         super()._set_data_mode(demo)
