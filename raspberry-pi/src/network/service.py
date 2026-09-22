@@ -62,13 +62,35 @@ def disconnect_wifi(interface='wlan0'):return nmcli('device','disconnect',interf
 def _field(output):return next((line.strip() for line in output.splitlines() if line.strip()),'')
 
 def ethernet_status(interface='eth0'):
-    shown=nmcli('-g','GENERAL.STATE,GENERAL.CONNECTION,IP4.ADDRESS,IP4.GATEWAY,IP4.DNS','device','show',interface);rows=[line.strip() for line in shown.stdout.splitlines()];connection=rows[1] if len(rows)>1 else ''
-    if not connection or connection=='--':
+    # Do not infer structured nmcli fields from blank-line positions: nmcli -g
+    # omits/compacts empty values. Read each property independently instead.
+    def prop(scope, name, target):
+        r=nmcli('-g',name,scope,'show',target)
+        return _field(r.stdout) if r.returncode==0 else ''
+
+    state=prop('device','GENERAL.STATE',interface) or 'nicht verfügbar'
+    connection=prop('device','GENERAL.CONNECTION',interface)
+    if connection=='--': connection=''
+
+    if not connection:
         profiles=nmcli('-g','NAME,TYPE','connection','show')
         allowed=('bridge',) if interface.startswith('br') else ('802-3-ethernet','ethernet')
-        connection=next((line.rsplit(':',1)[0] for line in profiles.stdout.splitlines() if line.rsplit(':',1)[-1] in allowed),'')
-    configured=nmcli('-g','ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns','connection','show',connection) if connection and connection!='--' else None;settings=[line.strip() for line in configured.stdout.splitlines()] if configured else [];live_address=next((row for row in rows[2:] if '/' in row),'');address=(settings[1] if len(settings)>1 else '') or live_address;ip,prefix=(address.split('/',1)+['24'])[:2] if address else ('','24');gateway=(settings[2] if len(settings)>2 else '') or (rows[3] if len(rows)>3 else '');dns=(settings[3] if len(settings)>3 else '') or ', '.join(row for row in rows[4:] if row);method=settings[0] if settings else 'auto'
-    return {'interface':interface,'state':rows[0] if rows else 'nicht verfügbar','connection':connection,'method':method,'address':ip,'prefix':prefix,'gateway':gateway,'dns':dns,'live_address':live_address}
+        connection=next((line.rsplit(':',1)[0] for line in profiles.stdout.splitlines()
+                         if ':' in line and line.rsplit(':',1)[-1] in allowed),'')
+
+    method=prop('connection','ipv4.method',connection) if connection else 'auto'
+    configured_address=prop('connection','ipv4.addresses',connection) if connection else ''
+    configured_gateway=prop('connection','ipv4.gateway',connection) if connection else ''
+    configured_dns=prop('connection','ipv4.dns',connection) if connection else ''
+
+    live=subprocess.run(['ip','-4','-brief','address','show','dev',interface],
+        text=True,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,check=False).stdout.split()
+    live_address=next((part for part in live if '/' in part),'')
+    address=configured_address or live_address
+    ip,prefix=(address.split('/',1)+['24'])[:2] if address else ('','24')
+    return {'interface':interface,'state':state,'connection':connection,'method':method or 'auto',
+            'address':ip,'prefix':prefix,'gateway':configured_gateway,'dns':configured_dns,
+            'live_address':live_address}
 
 
 def usb_ethernet_status():
