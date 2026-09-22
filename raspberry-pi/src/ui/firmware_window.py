@@ -156,7 +156,7 @@ class FirmwareMainWindow(MainWindow):
         self._repository_changed(); repo = self.fw_repository.text().strip()
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo): return
         self._firmware_busy = True; self.fw_check_button.setEnabled(False); self.fw_install_button.setEnabled(False); self.fw_status.setText("GitHub wird geprüft …")
-        worker = _FirmwareDiscoveryWorker(repo); worker.signals.result.connect(self._firmware_check_done); worker.signals.error.connect(self._firmware_check_failed); self.threadpool.start(worker)
+        worker = _FirmwareDiscoveryWorker(repo, self._installed_sha()); worker.signals.result.connect(self._firmware_check_done); worker.signals.error.connect(self._firmware_check_failed); self.threadpool.start(worker)
 
     def _firmware_check_done(self, result):
         self._firmware_busy = False; self.fw_check_button.setEnabled(True); self.fw_last_check.setText(datetime.now().strftime("%d.%m.%Y %H:%M")); versions = result["versions"]; self._available_versions = versions; self.fw_version_combo.clear(); self.fw_version_combo.addItem("Version wählen …", None)
@@ -173,7 +173,12 @@ class FirmwareMainWindow(MainWindow):
         tests = len(test_versions); self.fw_status.setText(f"{len(releases)} Stable · Main · {tests} TEST"); self._firmware_selection_changed()
 
     def _firmware_check_failed(self, message):
-        self._firmware_busy = False; self.fw_check_button.setEnabled(True); self.fw_last_check.setText(datetime.now().strftime("%d.%m.%Y %H:%M")); self.fw_latest.setText("—"); self.fw_status.setText("GitHub-Prüfung fehlgeschlagen"); self.fw_status.setToolTip(message)
+        self._firmware_busy = False; self.fw_check_button.setEnabled(True); self.fw_last_check.setText(datetime.now().strftime("%d.%m.%Y %H:%M")); self.fw_latest.setText("—"); if message.startswith("RATE_LIMIT:"):
+            reset = message.split(":", 1)[1] or "später"
+            self.fw_status.setText("GitHub-Limit erreicht · erneut ab " + reset)
+        else:
+            self.fw_status.setText("GitHub-Prüfung fehlgeschlagen")
+        self.fw_status.setToolTip(message)
 
     def _firmware_selection_changed(self):
         item = self.fw_version_combo.currentData() if hasattr(self, "fw_version_combo") else None
@@ -225,25 +230,70 @@ def _format_github_datetime(value):
 
 def _github_json(url):
     request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "dab-touchscreen"})
-    with urllib.request.urlopen(request, timeout=8) as response: return json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request, timeout=8) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 403 and exc.headers.get("X-RateLimit-Remaining") == "0":
+            reset = exc.headers.get("X-RateLimit-Reset", "")
+            try:
+                reset_text = datetime.fromtimestamp(int(reset)).strftime("%H:%M")
+            except (ValueError, TypeError, OSError):
+                reset_text = "später"
+            raise RuntimeError("RATE_LIMIT:" + reset_text) from exc
+        raise
 
 
 class _FirmwareDiscoveryWorker(QtCore.QRunnable):
-    def __init__(self, repository): super().__init__(); self.repository = repository; self.signals = _FirmwareSignals()
+    def __init__(self, repository, installed_sha=""):
+        super().__init__(); self.repository = repository; self.installed_sha = installed_sha; self.signals = _FirmwareSignals()
 
     @QtCore.pyqtSlot()
     def run(self):
         try:
-            base = "https://api.github.com/repos/" + urllib.parse.quote(self.repository, safe="/"); releases = _github_json(base + "/releases?per_page=20"); branches = _github_json(base + "/branches?per_page=100"); versions = []
+            base = "https://api.github.com/repos/" + urllib.parse.quote(self.repository, safe="/")
+            # Keep discovery deliberately cheap: normally 4 API requests total
+            # (releases, branches, main commit, newest TEST commit). Previously
+            # every development branch caused another commit request and quickly
+            # exhausted GitHub's anonymous 60 requests/hour limit.
+            releases = _github_json(base + "/releases?per_page=20")
+            branches = _github_json(base + "/branches?per_page=100")
+            versions = []
             for item in releases:
                 if item.get("draft"): continue
                 tag = (item.get("tag_name") or "").strip()
                 if tag:
-                    commit = _github_json(base + "/commits/" + urllib.parse.quote(tag, safe="")); sha = commit.get("sha", ""); versions.append({"kind":"stable","name":tag,"ref":tag,"sha":sha,"label":f"Stable · {tag} · {sha[:7]}"})
+                    # The tag remains installable as a ref. Avoid resolving every
+                    # release to a SHA during discovery; that would waste API quota.
+                    versions.append({"kind":"stable","name":tag,"ref":tag,"sha":"","label":f"Stable · {tag}"})
+
             branch_map = {item.get("name", ""): item.get("commit", {}).get("sha", "") for item in branches}
+            dated_shas = {}
+
             if "main" in branch_map:
-                sha = branch_map["main"]; commit = _github_json(base + "/commits/" + sha); raw_date = str(commit.get("commit",{}).get("committer",{}).get("date","")); date = _format_github_datetime(raw_date); versions.append({"kind":"main","name":"main","ref":"main","sha":sha,"date":date,"label":f"Main · {sha[:7]}"})
-            for name in sorted(n for n in branch_map if n.startswith(("feature/","development/"))):
-                sha = branch_map[name]; commit = _github_json(base + "/commits/" + sha); raw_date = str(commit.get("commit",{}).get("committer",{}).get("date","")); date = _format_github_datetime(raw_date); versions.append({"kind":"test","name":name,"ref":name,"sha":sha,"date":date,"label":f"TEST · {name} · {sha[:7]}"})
+                sha = branch_map["main"]
+                commit = _github_json(base + "/commits/" + sha)
+                date = _format_github_datetime(str(commit.get("commit",{}).get("committer",{}).get("date","")))
+                dated_shas[sha] = date
+                versions.append({"kind":"main","name":"main","ref":"main","sha":sha,"date":date,"label":f"Main · {sha[:7]}"})
+
+            test_names = sorted(n for n in branch_map if n.startswith(("feature/","development/")))
+            # The first TEST branch is the one shown as "Neueste Version", matching
+            # the existing UI behaviour. Only it gets a date lookup.
+            first_test_sha = branch_map[test_names[0]] if test_names else ""
+            first_test_date = ""
+            if first_test_sha:
+                commit = _github_json(base + "/commits/" + first_test_sha)
+                first_test_date = _format_github_datetime(str(commit.get("commit",{}).get("committer",{}).get("date","")))
+                dated_shas[first_test_sha] = first_test_date
+            for name in test_names:
+                sha = branch_map[name]
+                date = dated_shas.get(sha, "")
+                versions.append({"kind":"test","name":name,"ref":name,"sha":sha,"date":date,"label":f"TEST · {name} · {sha[:7]}"})
+
+            # If the installed commit is already main/latest TEST, its date is
+            # available without another request. Otherwise leave it unchanged;
+            # avoiding another API call is preferable to exhausting the quota.
             self.signals.result.emit({"versions":versions})
-        except Exception as exc: self.signals.error.emit(str(exc))
+        except Exception as exc:
+            self.signals.error.emit(str(exc))
