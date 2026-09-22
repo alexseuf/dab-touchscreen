@@ -168,7 +168,11 @@ class TestMainWindow(FirmwareMainWindow):
             self.fw_live_button.setCheckable(True); self.fw_demo_button.setCheckable(True)
             self.fw_live_button.clicked.connect(lambda: self._set_data_mode(False)); self.fw_demo_button.clicked.connect(lambda: self._set_data_mode(True))
             mode_row.addWidget(mode_label, 2); mode_row.addWidget(self.fw_live_button, 2); mode_row.addWidget(self.fw_demo_button, 1)
-            outer.insertLayout(max(0, outer.count() - 1), mode_row)
+            # Keep the operating-mode controls directly above the reset/system
+            # actions, matching the 800x480 touchscreen mock-up.
+            insert_at = max(0, outer.count() - 1)
+            outer.insertStretch(insert_at, 1)
+            outer.insertLayout(insert_at + 1, mode_row)
             self._show_data_mode(bool(self.config["app"].get("demo_data", True)))
             reset = QtWidgets.QPushButton("Werkseinstellungen wiederherstellen")
             reset.setFixedHeight(34)
