@@ -10,6 +10,28 @@ def result(stdout='', returncode=0, stderr=''):
 
 
 class EthernetConfigurationTest(unittest.TestCase):
+    @patch('src.network.service.subprocess.run')
+    @patch('src.network.service.nmcli')
+    def test_bridge_manual_method_survives_empty_gateway_and_dns(self, nmcli, run):
+        # nmcli -g may return empty fields as completely empty output; status
+        # must still read ipv4.method from the profile rather than row offsets.
+        def side(*args, **kwargs):
+            key=' '.join(args)
+            if 'GENERAL.STATE' in key: return result('100 (connected)\n')
+            if 'GENERAL.CONNECTION' in key: return result('dab-br0\n')
+            if 'ipv4.method' in key: return result('manual\n')
+            if 'ipv4.addresses' in key: return result('192.168.2.34/24\n')
+            if 'ipv4.gateway' in key or 'ipv4.dns' in key: return result('')
+            return result('')
+        nmcli.side_effect=side
+        run.return_value=result('br0 UP 192.168.2.34/24\n')
+        status=ethernet_status('br0')
+        self.assertEqual('manual',status['method'])
+        self.assertEqual('192.168.2.34',status['address'])
+        self.assertEqual('',status['gateway'])
+        self.assertEqual('',status['dns'])
+
+
     @patch('src.network.service.nmcli')
     def test_inactive_ethernet_uses_existing_wired_profile(self, nmcli):
         nmcli.side_effect=[
