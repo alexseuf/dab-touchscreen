@@ -124,6 +124,14 @@ with open(path,'w',encoding='utf-8') as f: json.dump({'repository':repo,'sha':sh
 os.chmod(path,0o640)
 PY
 chown "$SERVICE_USER:$SERVICE_USER" "$STATE_DIR/firmware-state.json"
-CURRENT_PHASE=restart; status restart "Oberfläche wird neu gestartet"; systemctl restart lightdm.service; sleep 8
-pgrep -u "$SERVICE_USER" -f 'python3 .*src\.main|python3 -m src\.main' >/dev/null
-CURRENT_PHASE=done; status success "Update erfolgreich installiert"; ls -1dt "$BACKUP_ROOT"/* 2>/dev/null | tail -n +6 | xargs -r rm -rf; rm -rf "$stage"; trap - ERR
+# Mark the exact commit as installed before restarting the graphical session.
+# systemctl restart lightdm can terminate the updater's calling GUI/session, so
+# no critical state write may depend on execution continuing after this point.
+CURRENT_PHASE=done; status success "Update erfolgreich installiert"
+CURRENT_PHASE=restart; systemctl restart lightdm.service
+# Best-effort health observation only: the new GUI may need a few seconds, but
+# failure here must not roll back an otherwise verified and installed update.
+sleep 8
+if ! pgrep -u "$SERVICE_USER" -f 'python3 .*src\.main|python3 -m src\.main' >/dev/null; then
+ logger -t dab-firmware "Update $sha installiert, GUI-Prozess nach Neustart noch nicht sichtbar"
+fi ls -1dt "$BACKUP_ROOT"/* 2>/dev/null | tail -n +6 | xargs -r rm -rf; rm -rf "$stage"; trap - ERR
