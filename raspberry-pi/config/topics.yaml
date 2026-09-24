@@ -1,24 +1,24 @@
 signals:
-  grid_voltage_l1: {topic: "GoldenGate/opParams/Measurements/Mains/Vrms_L12", unit: "V", label: "Netzspannung L1-L2"}
-  grid_voltage_l2: {topic: "GoldenGate/opParams/Measurements/Mains/Vrms_L23", unit: "V", label: "Netzspannung L2-L3"}
-  grid_voltage_l3: {topic: "GoldenGate/opParams/Measurements/Mains/Vrms_L31", unit: "V", label: "Netzspannung L3-L1"}
-  grid_current_l1: {topic: "GoldenGate/opParams/Measurements/Mains/Irms_L1", unit: "A", label: "Netzstrom L1"}
-  grid_current_l2: {topic: "GoldenGate/opParams/Measurements/Mains/Irms_L2", unit: "A", label: "Netzstrom L2"}
-  grid_current_l3: {topic: "GoldenGate/opParams/Measurements/Mains/Irms_L3", unit: "A", label: "Netzstrom L3"}
+  grid_voltage_l1: {topic: "GoldenGate/OpParams/Measurements/Mains/Vrms_L12", unit: "V", label: "Netzspannung L1-L2"}
+  grid_voltage_l2: {topic: "GoldenGate/OpParams/Measurements/Mains/Vrms_L23", unit: "V", label: "Netzspannung L2-L3"}
+  grid_voltage_l3: {topic: "GoldenGate/OpParams/Measurements/Mains/Vrms_L31", unit: "V", label: "Netzspannung L3-L1"}
+  grid_current_l1: {topic: "GoldenGate/OpParams/Measurements/Mains/Irms_L1", unit: "A", label: "Netzstrom L1"}
+  grid_current_l2: {topic: "GoldenGate/OpParams/Measurements/Mains/Irms_L2", unit: "A", label: "Netzstrom L2"}
+  grid_current_l3: {topic: "GoldenGate/OpParams/Measurements/Mains/Irms_L3", unit: "A", label: "Netzstrom L3"}
   grid_power_l1: {topic: "TODO", unit: "W", label: "Netzleistung L1"}
   grid_power_l2: {topic: "TODO", unit: "W", label: "Netzleistung L2"}
   grid_power_l3: {topic: "TODO", unit: "W", label: "Netzleistung L3"}
-  grid_frequency: {topic: "GoldenGate/opParams/Measurements/Mains/f_MAINS", unit: "Hz", label: "Netzfrequenz"}
-  input_power: {topic: "GoldenGate/opParams/Measurements/Mains/P_Active", unit: "W", label: "Eingangsleistung"}
-  dc_link_voltage: {topic: "GoldenGate/opParams/Measurements/DcBusPrimary/V_PRIM", unit: "V", label: "Zwischenkreis"}
-  output_voltage: {topic: "GoldenGate/opParams/Measurements/DcBusSecondary/V_SEC", unit: "V", label: "Ausgangsspannung"}
-  output_current: {topic: "GoldenGate/opParams/Measurements/DcBusSecondary/I_SEC", unit: "A", label: "Ausgangsstrom"}
+  grid_frequency: {topic: "GoldenGate/OpParams/Measurements/Mains/f_MAINS", unit: "Hz", label: "Netzfrequenz"}
+  input_power: {topic: "GoldenGate/OpParams/Measurements/Mains/P_Active", unit: "W", label: "Eingangsleistung"}
+  dc_link_voltage: {topic: "GoldenGate/OpParams/Measurements/DcBusPrimary/V_PRIM", unit: "V", label: "Zwischenkreis"}
+  output_voltage: {topic: "GoldenGate/OpParams/Measurements/DcBusSecondary/V_SEC", unit: "V", label: "Ausgangsspannung"}
+  output_current: {topic: "GoldenGate/OpParams/Measurements/DcBusSecondary/I_SEC", unit: "A", label: "Ausgangsstrom"}
   output_power: {topic: "TODO", unit: "W", label: "Ausgangsleistung"}
-  earth_voltage: {topic: "GoldenGate/opParams/Measurements/DcBusSecondary/V_EARTH", unit: "V", label: "V Earth"}
-  temp_pfc: {topic: "GoldenGate/opParams/Measurements/Temperatures/T_PFC_MOD", unit: "°C", label: "Temperatur PFC"}
-  temp_dab_primary: {topic: "GoldenGate/opParams/Measurements/Temperatures/T_DAB_PRIM", unit: "°C", label: "DAB primär"}
-  temp_dab_secondary: {topic: "GoldenGate/opParams/Measurements/Temperatures/T_DAB_SEC", unit: "°C", label: "DAB sekundär"}
-  temp_pcb_primary: {topic: "GoldenGate/opParams/Measurements/Temperatures/T_PCB_PRIM", unit: "°C", label: "PCB primär"}
-  temp_pcb_secondary: {topic: "GoldenGate/opParams/Measurements/Temperatures/T_PCB_SEC", unit: "°C", label: "PCB sekundär"}
-  temp_inductor: {topic: "GoldenGate/opParams/Measurements/Temperatures/T_CHOKE", unit: "°C", label: "Drossel"}
-  temp_transformer: {topic: "GoldenGate/opParams/Measurements/Temperatures/T_TRANS", unit: "°C", label: "Transformator"}
+  earth_voltage: {topic: "GoldenGate/OpParams/Measurements/DcBusSecondary/V_EARTH", unit: "V", label: "V Earth"}
+  temp_pfc: {topic: "GoldenGate/OpParams/Measurements/Temperatures/T_PFC_MOD", unit: "°C", label: "Temperatur PFC"}
+  temp_dab_primary: {topic: "GoldenGate/OpParams/Measurements/Temperatures/T_DAB_PRIM", unit: "°C", label: "DAB primär"}
+  temp_dab_secondary: {topic: "GoldenGate/OpParams/Measurements/Temperatures/T_DAB_SEC", unit: "°C", label: "DAB sekundär"}
+  temp_pcb_primary: {topic: "GoldenGate/OpParams/Measurements/Temperatures/T_PCB_PRIM", unit: "°C", label: "PCB primär"}
+  temp_pcb_secondary: {topic: "GoldenGate/OpParams/Measurements/Temperatures/T_PCB_SEC", unit: "°C", label: "PCB sekundär"}
+  temp_inductor: {topic: "GoldenGate/OpParams/Measurements/Temperatures/T_CHOKE", unit: "°C", label: "Drossel"}
+  temp_transformer: {topic: "GoldenGate/OpParams/Measurements/Temperatures/T_TRANS", unit: "°C", label: "Transformator"}
