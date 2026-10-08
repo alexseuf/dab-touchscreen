@@ -4,6 +4,22 @@ from datetime import datetime, timezone
 from threading import RLock
 from typing import Callable
 import json
+import re
+
+_GOLDENGATE_VALUE = re.compile(
+    r'^\s*\{\s*value\s*:\s*(?:"([^"]*)"|\'([^\']*)\'|([^}\s]+))\s*\}\s*$'
+)
+
+def _numeric_payload(payload: bytes | str) -> float:
+    text = payload.decode() if isinstance(payload, bytes) else str(payload)
+    try:
+        decoded = json.loads(text)
+    except (ValueError, TypeError):
+        match = _GOLDENGATE_VALUE.fullmatch(text)
+        decoded = next((value for value in match.groups() if value is not None), text) if match else text
+    if isinstance(decoded, dict) and 'value' in decoded:
+        decoded = decoded['value']
+    return float(decoded)
 
 @dataclass(frozen=True)
 class SignalValue:
@@ -31,14 +47,7 @@ class DataModel:
         definition = self.definitions[signal_id]
         now = timestamp or datetime.now(timezone.utc)
         try:
-            text = payload.decode() if isinstance(payload, bytes) else str(payload)
-            try:
-                decoded = json.loads(text)
-            except (ValueError, TypeError):
-                decoded = text
-            if isinstance(decoded, dict) and 'value' in decoded:
-                decoded = decoded['value']
-            value = float(decoded)
+            value = _numeric_payload(payload)
             quality = 'valid'
         except (ValueError, TypeError, UnicodeDecodeError):
             value, quality = None, 'invalid'

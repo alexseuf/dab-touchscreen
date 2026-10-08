@@ -6,6 +6,8 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 def main():
+    if os.environ.get('DAB_ENABLE_SIMULATOR','0').strip().lower() not in ('1','true','yes','on'):
+        return
     ap=argparse.ArgumentParser();ap.add_argument('--host',default='127.0.0.1');ap.add_argument('--port',type=int,default=1883);ap.add_argument('--interval',type=float,default=.5);a=ap.parse_args()
     topics=yaml.safe_load((ROOT/'config/topics.yaml').read_text())['signals']
     if hasattr(mqtt,'CallbackAPIVersion'): c=mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,client_id='dab-demo-publisher')
