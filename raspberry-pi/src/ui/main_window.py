@@ -3,7 +3,7 @@ import configparser, ctypes, html, json, os, platform, shutil, socket, subproces
 from collections import deque
 from PyQt5 import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
-from src.network.service import broker_status, ethernet_status, set_ethernet, usb_ethernet_status, wifi_scan, wifi_status, connect_wifi, disconnect_wifi
+from src.network.service import broker_status, ensure_fast_bridge_profile, ethernet_status, set_ethernet, usb_ethernet_status, wifi_scan, wifi_status, connect_wifi, disconnect_wifi
 
 SIGNAL_GROUPS={
  'Netz':['grid_voltage_l1','grid_voltage_l2','grid_voltage_l3','grid_current_l1','grid_current_l2','grid_current_l3','grid_frequency','input_power'],
@@ -74,7 +74,7 @@ class CompactValue(QtWidgets.QWidget):
 class MainWindow(QtWidgets.QMainWindow):
     model_event=QtCore.pyqtSignal(object);explorer_event=QtCore.pyqtSignal(object)
     def __init__(self,model,config,history=None):
-        super().__init__();self.model=model;self.config=config;self.history=history;self.mqtt=None;self.threadpool=QtCore.QThreadPool.globalInstance();self._keyboard_process=None;self._touch_keyboard_visible=False;self._wifi_status_running=False
+        super().__init__();ensure_fast_bridge_profile();self.model=model;self.config=config;self.history=history;self.mqtt=None;self.threadpool=QtCore.QThreadPool.globalInstance();self._keyboard_process=None;self._touch_keyboard_visible=False;self._wifi_status_running=False;self._lan_status_running=False
         self.setWindowTitle(config['app'].get('title','DAB Touchscreen'));self.resize(800,480);self.setMinimumSize(800,480);self._main_return_index=0;self._cpu_sample=None
         if os.environ.get('XDG_SESSION_TYPE')=='wayland' or os.environ.get('WAYLAND_DISPLAY'):
             self.setWindowFlag(QtCore.Qt.FramelessWindowHint,True);self._configure_panel_autohide()
@@ -87,6 +87,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.timer=QtCore.QTimer(self);self.timer.timeout.connect(self._refresh);self.timer.start(1000)
         self.setStyleSheet('''QWidget{background:#0b141b;color:#ffffff;font-family:"DejaVu Sans";font-size:14px}QTabWidget::pane{border:1px solid #355364}QTabBar::tab{min-width:155px;min-height:44px;background:#10293a;padding:2px;border:0}QTabBar::tab:selected{background:#1687e8}QFrame#card,QFrame#section{background:#101f29;border:1px solid #355364;border-radius:8px}QFrame#card[quality="stale"],QFrame#card[quality="missing"],CompactValue[quality="stale"],CompactValue[quality="missing"]{color:#89939e}QFrame#card[quality="invalid"],CompactValue[quality="invalid"]{color:#ff7b72}QLabel#cardTitle{font-size:12px;color:#9edcff}QLabel#value{font-size:18px;font-weight:bold}QLabel#compactTitle{font-size:12px;color:#9edcff}QLabel#compactValue{font-size:14px;font-weight:bold}QPushButton,QLineEdit,QComboBox{min-height:42px;padding:3px;background:#183040;color:#ffffff;border:1px solid #36596c;border-radius:5px}QPushButton:pressed{background:#1687e8}QPlainTextEdit,QListWidget,QTreeWidget{background:#101f29;border:1px solid #355364;color:#ffffff;font-family:"DejaVu Sans Mono"}QProgressBar{min-height:22px;background:#183040;border:1px solid #36596c}QProgressBar::chunk{background:#34d26b}QStatusBar{background:#0b141b;color:#ffffff;font-size:12px}''')
         self.wifi_timer=QtCore.QTimer(self);self.wifi_timer.timeout.connect(self._refresh_wifi_status);self.wifi_timer.start(5000)
+        self.lan_timer=QtCore.QTimer(self);self.lan_timer.timeout.connect(self._refresh_network);self.lan_timer.start(3000)
         self.system_timer=QtCore.QTimer(self);self.system_timer.timeout.connect(self._refresh_system);self.system_timer.start(2000)
 
     def _configure_panel_autohide(self):
@@ -208,7 +209,7 @@ class MainWindow(QtWidgets.QMainWindow):
         QtCore.QTimer.singleShot(1200,self._refresh_network)
 
     def _lan_failed(self,error):
-        self.lan_apply_button.setEnabled(True);self.lan_refresh_button.setEnabled(True);self.lan_result.setText("<span style='color:#e63946'>●</span> "+html.escape(error))
+        self._lan_status_running=False;self.lan_apply_button.setEnabled(True);self.lan_refresh_button.setEnabled(True);self.lan_result.setText("<span style='color:#e63946'>●</span> "+html.escape(error))
 
     def _system_page(self):
         root=QtWidgets.QWidget();outer=QtWidgets.QVBoxLayout(root);title=QtWidgets.QLabel('Raspberry-Pi-Systemstatus');title.setStyleSheet('font-size:21px;font-weight:bold');outer.addWidget(title)
@@ -391,10 +392,10 @@ class MainWindow(QtWidgets.QMainWindow):
             pts=self.samples[sid];curve.setData([x for x,_ in pts],[y for _,y in pts])
         self.status.setText(f'MQTT: {"verbunden" if self.mqtt and self.mqtt.connected else "getrennt"} | {time.strftime("%H:%M:%S")}')
     def _refresh_network(self):
-        if not hasattr(self,'lan_refresh_button'):return
-        self.lan_refresh_button.setEnabled(False);self._run_worker(ethernet_status,(self.config['network']['ethernet_interface'],),self._network_refreshed,self._lan_failed)
+        if not hasattr(self,'lan_refresh_button') or self._lan_status_running:return
+        self._lan_status_running=True;self.lan_refresh_button.setEnabled(False);self._run_worker(ethernet_status,(self.config['network']['ethernet_interface'],),self._network_refreshed,self._lan_failed)
     def _network_refreshed(self,status):
-        self.lan_refresh_button.setEnabled(True);manual=status['method']=='manual';self.lan_static.setChecked(manual);self.lan_dhcp.setChecked(not manual)
+        self._lan_status_running=False;self.lan_refresh_button.setEnabled(True);manual=status['method']=='manual';self.lan_static.setChecked(manual);self.lan_dhcp.setChecked(not manual)
         self.lan_address.setText(status['address']);self.lan_prefix.setText(status['prefix']);self.lan_gateway.setText(status['gateway']);self.lan_dns.setText(status['dns']);self._lan_mode_changed()
         state=html.escape(status['state']);connection=html.escape(status['connection'] or '—');live=html.escape(status['live_address'] or '—');self.lan_result.setText(f'<b>{html.escape(status["interface"])}</b> · {state}<br>Profil: {connection}<br>Aktuell: {live}')
         broker=broker_status();color='#34d26b' if broker['running'] else '#e63946';label='Läuft' if broker['running'] else 'Nicht erreichbar';self.lan_mqtt_status.setText(f"<span style='color:{color};font-size:22px'>●</span> <b>{label}</b><br><br><b>Broker-Adresse</b><br>mqtt://{html.escape(broker['host'])}<br><br><b>Port</b><br>{broker['port']}<br><br><b>Bevorzugter Weg</b><br>{html.escape(broker['preferred'])}")

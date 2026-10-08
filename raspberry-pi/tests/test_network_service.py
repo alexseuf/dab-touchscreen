@@ -2,7 +2,7 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
-from src.network.service import ethernet_status, set_ethernet
+from src.network.service import ensure_fast_bridge_profile, ethernet_status, set_ethernet
 
 
 def result(stdout='', returncode=0, stderr=''):
@@ -10,6 +10,16 @@ def result(stdout='', returncode=0, stderr=''):
 
 
 class EthernetConfigurationTest(unittest.TestCase):
+    @patch('src.network.service.nmcli')
+    def test_fast_bridge_profile_disables_stp_and_enables_autoconnect(self, nmcli):
+        nmcli.side_effect=[result('dab-br0:bridge\n'),result()]
+        applied=ensure_fast_bridge_profile()
+        self.assertEqual(0,applied.returncode)
+        modify=nmcli.call_args_list[1].args
+        self.assertIn('bridge.stp',modify)
+        self.assertEqual('no',modify[modify.index('bridge.stp')+1])
+        self.assertEqual('yes',modify[modify.index('connection.autoconnect-slaves')+1])
+
     @patch('src.network.service.subprocess.run')
     @patch('src.network.service.nmcli')
     def test_bridge_manual_method_survives_empty_gateway_and_dns(self, nmcli, run):
@@ -86,6 +96,16 @@ class EthernetConfigurationTest(unittest.TestCase):
         self.assertIn('auto',modify)
         self.assertIn('ipv4.addresses',modify)
         self.assertIn('ipv4.ignore-auto-dns',modify)
+
+    @patch('src.network.service.ethernet_status', return_value={
+        'connection':'dab-br0','method':'manual','address':'192.168.2.138',
+        'prefix':'24','gateway':'','dns':'','state':'100 (connected)'})
+    @patch('src.network.service.nmcli')
+    def test_unchanged_static_configuration_does_not_restart_bridge(self, nmcli, _status):
+        applied=set_ethernet('br0','manual','192.168.2.138','24','','')
+        self.assertEqual(0,applied.returncode)
+        self.assertIn('nicht neu gestartet',applied.stdout)
+        nmcli.assert_not_called()
 
 
 if __name__=='__main__':
