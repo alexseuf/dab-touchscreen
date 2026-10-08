@@ -24,9 +24,17 @@ fi
 # layout was installed into its real system keyboard directory before LightDM
 # restarted, so do not kill/restart Squeekboard from the DAB application.
 
-sleep 2
 if command -v wlr-randr >/dev/null 2>&1; then
-    wlr-randr | awk '/^[^[:space:]]/{print $1}' | while read -r output; do
+    # The compositor is usually ready in a fraction of a second. Poll instead
+    # of imposing a fixed two-second delay on every application start.
+    outputs=""
+    attempts=0
+    while [ -z "$outputs" ] && [ "$attempts" -lt 20 ]; do
+        outputs="$(wlr-randr 2>/dev/null | awk '/^[^[:space:]]/{print $1}')"
+        [ -n "$outputs" ] || sleep 0.1
+        attempts=$((attempts + 1))
+    done
+    printf '%s\n' "$outputs" | while read -r output; do
         [ -n "$output" ] && wlr-randr --output "$output" --transform 180 || true
     done
 fi

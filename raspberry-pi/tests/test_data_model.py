@@ -17,6 +17,16 @@ class DataModelTest(unittest.TestCase):
         self.assertEqual(m.update_topic(topic,b'broken').quality,'invalid')
         m.update_topic(topic,b'400',datetime.now(timezone.utc)-timedelta(seconds=2))
         self.assertEqual(m.get('output_voltage').quality,'stale')
+    def test_json_value_payload(self):
+        m=DataModel(self.defs);topic=self.defs['output_voltage']['topic']
+        item=m.update_topic(topic,b'{"value":"401.25"}')
+        self.assertEqual('valid',item.quality)
+        self.assertEqual(401.25,item.value)
+    def test_goldengate_value_payload(self):
+        m=DataModel(self.defs);topic=self.defs['output_voltage']['topic']
+        item=m.update_topic(topic,b'{ value:"401.25 "}')
+        self.assertEqual('valid',item.quality)
+        self.assertEqual(401.25,item.value)
     def test_unknown_topic_is_ignored(self): self.assertIsNone(DataModel(self.defs).update_topic('unknown',b'1'))
 
 if __name__=='__main__':unittest.main()

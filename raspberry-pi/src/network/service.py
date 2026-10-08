@@ -139,6 +139,17 @@ def broker_status():
     preferred='Bridge/LAN' if addresses['br0'] else ('LAN' if addresses['eth0'] else ('WLAN' if addresses['wlan0'] else 'lokal'))
     return {'running':running,'host':host,'port':1883,'preferred':preferred}
 
+def ensure_fast_bridge_profile(bridge_profile='dab-br0'):
+    """Make an existing point-to-point DAB bridge boot without STP delay."""
+    profiles=nmcli('-g','NAME,TYPE','connection','show')
+    exists=any(line.rsplit(':',1)==[bridge_profile,'bridge']
+        for line in profiles.stdout.splitlines() if ':' in line)
+    if not exists:
+        return subprocess.CompletedProcess(['nmcli'],0,'Kein DAB-Bridge-Profil vorhanden.','')
+    return nmcli('connection','modify',bridge_profile,
+        'connection.autoconnect','yes','connection.autoconnect-slaves','yes',
+        'bridge.stp','no')
+
 def set_ethernet(interface,method,address='',prefix='24',gateway='',dns=''):
     status=ethernet_status(interface);connection=status['connection']
     if not connection or connection=='--':raise ValueError(f'Keine Ethernet-Verbindung für {interface} gefunden')
@@ -154,10 +165,18 @@ def set_ethernet(interface,method,address='',prefix='24',gateway='',dns=''):
             if gateway_ip not in network:raise ValueError('Gateway liegt nicht im angegebenen Netz')
         dns_values=[value for value in dns.replace(',',' ').split() if value]
         for value in dns_values:ipaddress.IPv4Address(value)
+        unchanged=(status.get('method')=='manual' and status.get('address')==str(ip)
+            and status.get('prefix')==str(prefix_int) and status.get('gateway','')==gateway_value
+            and status.get('dns','').replace(' ','')==','.join(dns_values))
+        if unchanged:
+            return subprocess.CompletedProcess(['nmcli'],0,'Konfiguration bereits aktiv; Netzwerk wurde nicht neu gestartet.','')
         # Gateway and DNS are intentionally optional. An isolated DUT LAN must
         # not install a competing default route; WLAN remains Internet/recovery.
         args += ['ipv4.method','manual','ipv4.addresses',f'{ip}/{prefix_int}','ipv4.gateway',gateway_value,'ipv4.dns',','.join(dns_values),'ipv4.ignore-auto-dns','yes','ipv4.never-default','yes' if not gateway_value else 'no']
-    else:args += ['ipv4.method','auto','ipv4.addresses','','ipv4.gateway','','ipv4.dns','','ipv4.ignore-auto-dns','no']
+    else:
+        if status.get('method')=='auto':
+            return subprocess.CompletedProcess(['nmcli'],0,'Konfiguration bereits aktiv; Netzwerk wurde nicht neu gestartet.','')
+        args += ['ipv4.method','auto','ipv4.addresses','','ipv4.gateway','','ipv4.dns','','ipv4.ignore-auto-dns','no']
     changed=nmcli(*args)
     if changed.returncode:return changed
     # Bridge profiles are activated by connection name. Supplying "ifname br0"
@@ -209,7 +228,9 @@ def configure_usb_ethernet_bridge(address='192.168.2.138',prefix='24',lan_interf
     changed=nmcli('connection','modify',bridge_profile,
         'ipv4.method','manual','ipv4.addresses',f'{ip}/{prefix_int}',
         'ipv4.gateway','','ipv4.dns','','ipv4.ignore-auto-dns','yes',
-        'ipv4.never-default','yes','ipv6.method','disabled')
+        'ipv4.never-default','yes','ipv6.method','disabled',
+        'connection.autoconnect','yes','connection.autoconnect-slaves','yes',
+        'bridge.stp','no')
     if changed.returncode:return changed
 
     def active_or_create_slave(interface,profile_name):
@@ -219,7 +240,8 @@ def configure_usb_ethernet_bridge(address='192.168.2.138',prefix='24',lan_interf
             added=nmcli('connection','add','type','ethernet','ifname',interface,'con-name',profile_name)
             if added.returncode:return added
             connection=profile_name
-        return nmcli('connection','modify',connection,'master',bridge_profile,'slave-type','bridge')
+        return nmcli('connection','modify',connection,'master',bridge_profile,
+            'slave-type','bridge','connection.autoconnect','yes')
 
     onboard=active_or_create_slave(lan_interface,'dab-br0-eth0')
     if onboard.returncode:return onboard
